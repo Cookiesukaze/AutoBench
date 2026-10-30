@@ -1,0 +1,57 @@
+{
+  "_notes": {
+    "local": "本机的数据和产物放哪里",
+    "remote": "GPU 机器上的路径、三个解释器、专家用哪个解释器、ssh 与轮询超时"
+  },
+
+  "local": {
+    "data_root": "E:/Project3s/autoinferopt/outputs",
+    "runs_subdir": "autobench"
+  },
+
+  "remote": {
+    "host": "A800",
+    "base": "/home/zfj/data/video",
+
+    "repo": "repos/AutoInferOpt",
+    "third_party": "repos/AutoInferOpt/third_party/evaluation/benchmark_20261019",
+    "expert_weights": {
+      "default": "models/AutoInferOpt/evaluators/benchmark_20261019",
+      "pose": "models/AutoInferOpt/evaluators/RTMW"
+    },
+    "expert_manifests": "outputs/AutoInferOpt/benchmark_experts_20261019",
+    "manifests": {
+      "cotracker3": "attempt4/cotracker3.json",
+      "waft": "attempt4/waft.json",
+      "sam31": "sam_dino_validation/sam31.json",
+      "dinov3": "sam_dino_validation/dinov3.json",
+      "pose": "rtmw/pose.json"
+    },
+
+    "python": {
+      "tracker": "envs/AutoInferOpt/benchmark_tracker_20261019/bin/python",
+      "main": "envs/AutoInferOpt/benchmark_20261019/bin/python",
+      "hadm": "envs/AutoInferOpt/hadm_20261020/bin/python"
+    },
+    "expert_python": {
+      "cotracker3": "tracker",
+      "waft": "tracker",
+      "sam31": "main",
+      "dinov3": "main",
+      "pose": "hadm"
+    },
+
+    "assets": "assets/AutoInferOpt",
+    "archive": "outputs/AutoInferOpt/archive",
+
+    "timeouts": {
+      "ssh_s": 120,
+      "connect_s": 20,
+      "start_s": 45,
+      "start_retries": 20,
+      "start_sleep_s": 3,
+      "poll_s": 30,
+      "poll_limit_s": 10800
+    }
+  }
+}

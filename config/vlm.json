@@ -1,0 +1,59 @@
+{
+  "_notes": {
+    "model": "判分用的模型名",
+    "effort": "推理力度档位",
+    "max_output_tokens": "单次回答的 token 上限",
+    "image": "每张图怎么压缩、单次请求最多几张",
+    "frames": "各阶段抽几帧、窗口边距多少秒、抽帧的 JPEG 质量",
+    "timeout": "连接超时和读取超时，单位秒",
+    "retry": "传输失败与格式失败各试几次、退避多久；每个判分阶段自己再试几轮",
+    "review_samples": "复核时每次独立采样几遍，取多数",
+    "concurrency": "同时判几条视频",
+    "endpoint": "接口地址与密钥从哪里读"
+  },
+
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "max_output_tokens": 8000,
+
+  "image": {
+    "max_side": 1280,
+    "jpeg_quality": 92,
+    "detail": "high",
+    "max_per_request": 8
+  },
+
+  "frames": {
+    "locate": 10,
+    "window": 4,
+    "review": 8,
+    "review_margin_s": 0.25,
+    "event_margin_s": 0.4,
+    "end_window_s": 1.0,
+    "jpeg_quality": 95
+  },
+
+  "timeout": {
+    "connect_s": 30,
+    "read_s": 300
+  },
+
+  "retry": {
+    "transport_attempts": 6,
+    "transport_backoff_s": [15, 240],
+    "format_attempts": 3,
+    "stage": {
+      "first":  {"attempts": 4, "transport_sleep_s": 20, "format_sleep_s": 5},
+      "fusion": {"attempts": 4, "transport_sleep_s": 20, "format_sleep_s": 5},
+      "review": {"attempts": 3, "transport_sleep_s": 15, "format_sleep_s": 3}
+    }
+  },
+
+  "review_samples": 2,
+  "concurrency": 5,
+
+  "endpoint": {
+    "base_url": null,
+    "api_key_env": "OPENAI_API_KEY"
+  }
+}

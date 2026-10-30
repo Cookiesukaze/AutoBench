@@ -1,0 +1,24 @@
+{
+  "_notes": {
+    "count": "一次要几张卡",
+    "free_mib": "显存占用低于这个数才算空闲，单位 MiB",
+    "headroom_gib": "每张卡上留出多少不被预约，单位 GiB",
+    "max_sam_servers": "SAM 同时最多起几个服务进程",
+    "budget_gib": "每个步骤预计要占多少显存，单位 GiB"
+  },
+
+  "count": 4,
+  "free_mib": 2000,
+  "headroom_gib": 3.0,
+  "max_sam_servers": 2,
+
+  "budget_gib": {
+    "sam31": 32.0,
+    "cotracker3": 17.0,
+    "waft": 4.0,
+    "dinov3": 3.0,
+    "pose": 2.0,
+    "hadm": 56.0,
+    "motion": 66.0
+  }
+}

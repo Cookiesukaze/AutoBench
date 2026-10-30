@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autobench"
+version = "0.1.0"
+description = "Video generation benchmark: plan, expert, quality, judge, score"
+requires-python = ">=3.10"
+dependencies = ["requests", "numpy", "pillow", "opencv-python"]
+
+[project.scripts]
+autobench = "autobench.app.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["autobench*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+autobench = ["prompt/*/*.md"]
