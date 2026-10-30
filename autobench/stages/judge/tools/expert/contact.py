@@ -13,7 +13,7 @@ from .....app.types import Item, RuleResult
 from ...experts import pose as pose_expert
 
 
-def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | None:
+def decide(item: Item, folder: Path, meta: dict, checks: dict) -> RuleResult | None:
     concepts = item.concepts
     target = concepts[-1] if len(concepts) > 1 else (concepts[0] if concepts else None)
     if not target:
@@ -27,7 +27,7 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
     z = pose_expert.load(folder)
     masks = pose_expert.np.load(mask_file, allow_pickle=True)
     summary = pose_expert.hand_summary(
-        z, masks, [0.0, float(frames)], 24.0,
+        z, masks, [0.0, float(meta["frames"])], meta["fps"],
         hand_score=judge_thresholds["hand_score"], hand_reach=judge_thresholds["hand_reach"],
         touch_px=item.rule["touch_px"])
     inside = sum(summary[side]["frames_hand_point_inside_mask"] for side in ("left", "right"))
@@ -43,11 +43,12 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
                 "frames_hand_within_touch_px": touch,
                 "frames_with_hand_found": found,
                 "min_distance_px": min(distances)}
-    if inside >= item.rule["min_frames"] or touch >= max(3, found // 5):
+    if inside >= item.rule["min_frames"] or touch >= max(item.rule["min_touch_frames"],
+                                                          int(found * item.rule["touch_share"])):
         return RuleResult(status="pass", measured=measured,
                           reason="hand keypoints touch the object mask in %d frames (%d of them inside it): "
                                  "the hold is real" % (max(touch, inside), inside))
-    if measured["min_distance_px"] > 250:
+    if measured["min_distance_px"] > item.rule["no_contact_px"]:
         return RuleResult(status="fail", measured=measured,
                           reason="no hand comes near the object at any frame (closest %d px)"
                                  % measured["min_distance_px"])

@@ -11,7 +11,7 @@ from ...experts import cotracker as cotracker_expert
 from ...experts import sam as sam_expert
 
 
-def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | None:
+def decide(item: Item, folder: Path, meta: dict, checks: dict) -> RuleResult | None:
     tracks_file, mask_file = folder / "cotracker3.tracks.npz", folder / "sam31.masks.npz"
     if not tracks_file.exists() or not mask_file.exists():
         return None

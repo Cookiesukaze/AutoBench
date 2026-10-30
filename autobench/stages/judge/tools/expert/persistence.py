@@ -16,7 +16,7 @@ from .....app.types import Item, RuleResult
 from ...experts import sam as sam_expert
 
 
-def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | None:
+def decide(item: Item, folder: Path, meta: dict, checks: dict) -> RuleResult | None:
     params = item.rule
     stable_min, zero_run = params["stable_min_px"], params["zero_run_samples"]
     tail_exempt, group_ratio = params["tail_exempt_samples"], params["size_group_ratio"]
@@ -37,7 +37,8 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
             # 文本提示词整段没分到这个概念：这是"规则看不见它"，不是"它一直在"。
             not_segmented.append(concept)
             continue
-        stable_here = min(stable_min, max(150, int(0.2 * peak_all)))
+        stable_here = min(stable_min, max(params["stable_floor_px"],
+                                          int(params["stable_peak_share"] * peak_all)))
         for i, (_, a) in enumerate(areas):
             runmax = max(runmax, a)
             if stable_from is None and runmax >= stable_here:
@@ -54,7 +55,7 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
                 cur_zero = 0
         if cur_zero >= zero_run and start_i is not None and start_i < len(areas) - tail_exempt:
             limit_i = start_i - 1
-            while limit_i > 0 and areas[limit_i][1] >= 5 * stable_min:
+            while limit_i > 0 and areas[limit_i][1] >= params["explosion_factor"] * stable_min:
                 limit_i -= 1
             last_seen = next((areas[i] for i in range(limit_i, -1, -1) if areas[i][1] > 0), None)
             border = None
@@ -64,10 +65,13 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
                     m = m.any(0)
                 ys, xs = np.where(m)
                 h, w = m.shape
-                border = bool(xs.min() < 8 or xs.max() > w - 8 or ys.min() < 8 or ys.max() > h - 8)
+                margin = params["border_touch_px"]
+                border = bool(xs.min() < margin or xs.max() > w - margin
+                              or ys.min() < margin or ys.max() > h - margin)
             biggest = max(a for _, a in areas)
-            explosion = biggest >= 5 * stable_min and biggest > 3 * (
-                min((a for _, a in areas if a > 0), default=0) or biggest)
+            smaller = min((a for _, a in areas if a > 0), default=0) or biggest
+            explosion = (biggest >= params["explosion_factor"] * stable_min
+                         and biggest > params["explosion_reappear_ratio"] * smaller)
             findings.append({
                 "concept": concept, "zero_from_sample": start_i, "zero_samples": cur_zero,
                 "peak_area_px": runmax,
@@ -91,7 +95,7 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
             if actor is not None:
                 near = sam_expert.mask_near(actor, f)
                 if near is not None and near.any():
-                    insts = [i for i in insts if (i & near).sum() > 0.1 * max(1, int(i.sum()))]
+                    insts = [i for i in insts if (i & near).sum() > params["actor_overlap_share"] * max(1, int(i.sum()))]
             counts.append(len(insts))
         baseline_n = int(np.median(counts)) if counts else 0
         if baseline_n >= 2:
@@ -100,15 +104,17 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
                     run = 1
                     while i + run < len(counts) and counts[i + run] == counts[i]:
                         run += 1
-                    if run < 2:
+                    if run < params["merge_min_samples"]:
                         continue
-                    if sam_expert.instances_left_frame(z, areas[i - 1][0], areas[i][0]):
+                    if sam_expert.instances_left_frame(z, areas[i - 1][0], areas[i][0],
+                                                   margin=params["border_touch_px"]):
                         continue
                     before, after = z[f"masks_{areas[i - 1][0]}"], z[f"masks_{areas[i][0]}"]
                     if before.ndim == 3 and after.ndim == 3:
                         gone = before.any(0) & ~after.any(0)
                         if gone.any() and sam_expert.covered_by_other(
-                                folder, areas[i][0], gone, folder / f"sam31.{concept}.masks.npz") >= 0.4:
+                                folder, areas[i][0], gone,
+                                folder / f"sam31.{concept}.masks.npz") >= params["occlusion_cover"]:
                             continue
                     findings.append({
                         "concept": concept, "merge_from_instances": counts[i - 1],

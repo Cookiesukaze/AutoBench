@@ -31,14 +31,11 @@ def entries(specs: Path) -> dict[str, dict]:
 
 
 def image_for(image_dir: Path, question: str) -> Path:
-    """参考图按完整题号命名；老数据里按第一个下划线前片段命名的，才回退到那个。"""
-    full = image_dir / f"{question}.jpg"
-    if full.exists():
-        return full
-    short = image_dir / f"{question.split('_')[0]}.jpg"
-    if short.exists():
-        return short
-    raise ContractError(f"{image_dir} 里找不到 {question} 的参考图")
+    """参考图必须按完整题号命名。命名不统一是数据的事，代码不猜。"""
+    path = image_dir / f"{question}.jpg"
+    if not path.exists():
+        raise ContractError(f"{image_dir} 里没有 {question}.jpg；参考图要按完整题号命名")
+    return path
 
 
 def load(specs: Path, question: str, image_dir: Path) -> dict:

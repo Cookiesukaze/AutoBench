@@ -5,56 +5,181 @@
     "weights": "三个分数各占多少、维度怎么平均、排行榜的统计参数",
     "thresholds": "判定线：scale 是所有检测器共享的刻度，detectors 一个检测器一条，judge 是判分常数"
   },
-
   "checks": {
-    "identity":   {"dimension": "CA-01", "judged_by": "vlm",  "expert": "dinov3"},
-    "attribute":  {"dimension": "CA-02", "judged_by": "vlm",  "expert": null},
-    "binding":    {"dimension": "CA-03", "judged_by": "vlm",  "expert": "sam31"},
-    "count":      {"dimension": "CA-04", "judged_by": "vlm",  "expert": "sam31"},
-    "action":     {"dimension": "CA-05", "judged_by": "vlm",  "expert": "cotracker3"},
-    "end_state":  {"dimension": "CA-05", "judged_by": "vlm",  "expert": "sam31",
-                   "levels": [1, 0.9, 0.5]},
-    "direction":  {"dimension": "CA-06", "judged_by": "vlm",  "expert": "cotracker3"},
-    "hand_side":  {"dimension": "CA-06", "judged_by": "rule", "expert": "pose",
-                   "rule": {"margin_pass": 0.8, "margin_fail": 1.5, "min_frames": 3}},
-    "order":      {"dimension": "CA-07", "judged_by": "vlm",  "expert": null},
-    "camera":     {"dimension": "CA-08", "judged_by": "rule", "expert": "waft",
-                   "rule": {"pan_tilt_min_fraction": 0.12, "zoom_min_ratio": 1.05,
-                            "still_max_fraction": 0.1, "subject_excess_scale_max": 1.15}},
-    "framing":    {"dimension": "CA-08", "judged_by": "vlm",  "expert": "sam31",
-                   "rule": {"border_margin_px": 2, "min_area_px": 150},
-                   "note": "规则未实现，暂由 VLM 判"},
-    "continuity": {"dimension": "MP-01", "judged_by": "rule", "expert": "cotracker3",
-                   "rule": {"jump_px": 200}},
-    "body":       {"dimension": "MP-02", "judged_by": "vlm",  "expert": "pose"},
-    "contact":    {"dimension": "MP-03", "judged_by": "rule", "expert": "pose",
-                   "rule": {"touch_px": 30, "min_frames": 2}},
-    "support":    {"dimension": "MP-04", "judged_by": "vlm",  "expert": "sam31"},
-    "interaction":{"dimension": "MP-05", "judged_by": "vlm",  "expert": "cotracker3"},
-    "persistence":{"dimension": "MP-06", "judged_by": "rule", "expert": "sam31",
-                   "rule": {"area_drop_ratio": 0.3, "border_margin_px": 2, "stable_min_px": 2000,
-                            "zero_run_samples": 2, "tail_exempt_samples": 2, "size_group_ratio": 2.5}},
-    "material":   {"dimension": "MP-07", "judged_by": "vlm",  "expert": "sam31"}
+    "identity": {
+      "dimension": "CA-01",
+      "judged_by": "vlm",
+      "expert": "dinov3"
+    },
+    "attribute": {
+      "dimension": "CA-02",
+      "judged_by": "vlm",
+      "expert": null
+    },
+    "binding": {
+      "dimension": "CA-03",
+      "judged_by": "vlm",
+      "expert": "sam31"
+    },
+    "count": {
+      "dimension": "CA-04",
+      "judged_by": "vlm",
+      "expert": "sam31"
+    },
+    "action": {
+      "dimension": "CA-05",
+      "judged_by": "vlm",
+      "expert": "cotracker3"
+    },
+    "end_state": {
+      "dimension": "CA-05",
+      "judged_by": "vlm",
+      "expert": "sam31",
+      "levels": [
+        1,
+        0.9,
+        0.5
+      ]
+    },
+    "direction": {
+      "dimension": "CA-06",
+      "judged_by": "vlm",
+      "expert": "cotracker3"
+    },
+    "hand_side": {
+      "dimension": "CA-06",
+      "judged_by": "rule",
+      "expert": "pose",
+      "rule": {
+        "margin_pass": 0.8,
+        "margin_fail": 1.5,
+        "min_frames": 3
+      }
+    },
+    "order": {
+      "dimension": "CA-07",
+      "judged_by": "vlm",
+      "expert": null
+    },
+    "camera": {
+      "dimension": "CA-08",
+      "judged_by": "rule",
+      "expert": "waft",
+      "rule": {
+        "pan_tilt_min_fraction": 0.12,
+        "zoom_min_ratio": 1.05,
+        "still_max_fraction": 0.1,
+        "subject_excess_scale_max": 1.15,
+        "zoom_tol_log": 0.35,
+        "position_excess_max": 3.0
+      }
+    },
+    "framing": {
+      "dimension": "CA-08",
+      "judged_by": "vlm",
+      "expert": "sam31",
+      "rule": {
+        "border_margin_px": 2,
+        "min_area_px": 150
+      },
+      "note": "规则未实现，暂由 VLM 判"
+    },
+    "continuity": {
+      "dimension": "MP-01",
+      "judged_by": "rule",
+      "expert": "cotracker3",
+      "rule": {
+        "jump_px": 200
+      }
+    },
+    "body": {
+      "dimension": "MP-02",
+      "judged_by": "vlm",
+      "expert": "pose"
+    },
+    "contact": {
+      "dimension": "MP-03",
+      "judged_by": "rule",
+      "expert": "pose",
+      "rule": {
+        "touch_px": 30,
+        "min_frames": 2,
+        "no_contact_px": 250,
+        "min_touch_frames": 3,
+        "touch_share": 0.2
+      }
+    },
+    "support": {
+      "dimension": "MP-04",
+      "judged_by": "vlm",
+      "expert": "sam31"
+    },
+    "interaction": {
+      "dimension": "MP-05",
+      "judged_by": "vlm",
+      "expert": "cotracker3"
+    },
+    "persistence": {
+      "dimension": "MP-06",
+      "judged_by": "rule",
+      "expert": "sam31",
+      "rule": {
+        "area_drop_ratio": 0.3,
+        "border_margin_px": 2,
+        "stable_min_px": 2000,
+        "zero_run_samples": 2,
+        "tail_exempt_samples": 2,
+        "size_group_ratio": 2.5,
+        "stable_floor_px": 150,
+        "stable_peak_share": 0.2,
+        "explosion_factor": 5,
+        "occlusion_cover": 0.4,
+        "actor_overlap_share": 0.1,
+        "merge_min_samples": 2,
+        "border_touch_px": 8,
+        "explosion_reappear_ratio": 3.0
+      }
+    },
+    "material": {
+      "dimension": "MP-07",
+      "judged_by": "vlm",
+      "expert": "sam31"
+    }
   },
-
   "experts": {
-    "waft":       {"installed": true},
-    "cotracker3": {"installed": true},
-    "sam31":      {"installed": true},
-    "dinov3":     {"installed": true},
-    "pose":       {"installed": true}
+    "waft": {
+      "installed": true
+    },
+    "cotracker3": {
+      "installed": true
+    },
+    "sam31": {
+      "installed": true
+    },
+    "dinov3": {
+      "installed": true
+    },
+    "pose": {
+      "installed": true
+    }
   },
-
   "weights": {
     "content": 1,
     "physics": 1,
     "quality": 1,
     "aggregation": "dimension",
     "min_coverage": 0.5,
-    "categories": {"CA": "content", "MP": "physics"},
-    "bootstrap": {"n": 2000, "seed": 20261027, "alpha": 0.05, "separable_at": 0.95}
+    "categories": {
+      "CA": "content",
+      "MP": "physics"
+    },
+    "bootstrap": {
+      "n": 2000,
+      "seed": 20261027,
+      "alpha": 0.05,
+      "separable_at": 0.95
+    }
   },
-
   "thresholds": {
     "scale": {
       "screen_score": 55,
@@ -65,25 +190,79 @@
       "bad_share": 0.5,
       "config_threshold": 0.3
     },
-
     "detectors": {
-      "camera_jitter":     {"worse_when": "higher", "group_z": 2.35, "alone": true, "p": 0.3},
-      "low_motion":        {"metric": "subject_motion", "worse_when": "lower", "alone": true, "p": 0.3},
-      "flicker":           {"worse_when": "higher", "p": 0.3},
-      "flicker_v2":        {"worse_when": "higher", "absolute": 44.0, "p": 0.3},
-      "technical_quality": {"worse_when": "lower", "absolute": 54.0, "p": 0.3},
-      "sharpness":         {"worse_when": "lower", "p": 0.3},
-      "gen_artifact":      {"metric": "gen_artifact_warp", "worse_when": "higher", "transform": "raw",
-                            "absolute": {"strong_warp": 2.0, "weak_warp": 1.2, "burst_share": 0.4}, "p": 0.3},
-      "human_structure":   {"worse_when": "higher",
-                            "absolute": {"min_run_s": 1.0, "confidence": 0.5}, "p": 0.3},
-      "dover_technical":   {"worse_when": "lower", "p": 0.3},
-      "dover_aesthetic":   {"worse_when": "lower", "p": 0.3},
-      "ghosting":          {"worse_when": "higher", "wired": false, "p": 0.3},
-      "brightness_step":   {"worse_when": "higher", "counts": false,
-                            "absolute": {"ratio": 3.0, "relative": 0.15, "warmup_s": 0.5}}
+      "camera_jitter": {
+        "worse_when": "higher",
+        "group_z": 2.35,
+        "alone": true,
+        "p": 0.3
+      },
+      "low_motion": {
+        "metric": "subject_motion",
+        "worse_when": "lower",
+        "alone": true,
+        "p": 0.3
+      },
+      "flicker": {
+        "worse_when": "higher",
+        "p": 0.3
+      },
+      "flicker_v2": {
+        "worse_when": "higher",
+        "absolute": 44.0,
+        "p": 0.3
+      },
+      "technical_quality": {
+        "worse_when": "lower",
+        "absolute": 54.0,
+        "p": 0.3
+      },
+      "sharpness": {
+        "worse_when": "lower",
+        "p": 0.3
+      },
+      "gen_artifact": {
+        "metric": "gen_artifact_warp",
+        "worse_when": "higher",
+        "transform": "raw",
+        "absolute": {
+          "strong_warp": 2.0,
+          "weak_warp": 1.2,
+          "burst_share": 0.4
+        },
+        "p": 0.3
+      },
+      "human_structure": {
+        "worse_when": "higher",
+        "absolute": {
+          "min_run_s": 1.0,
+          "confidence": 0.5
+        },
+        "p": 0.3
+      },
+      "dover_technical": {
+        "worse_when": "lower",
+        "p": 0.3
+      },
+      "dover_aesthetic": {
+        "worse_when": "lower",
+        "p": 0.3
+      },
+      "ghosting": {
+        "worse_when": "higher",
+        "wired": false,
+        "p": 0.3
+      },
+      "brightness_step": {
+        "worse_when": "higher",
+        "counts": false,
+        "absolute": {
+          "ratio": 3.0,
+          "relative": 0.15,
+          "warmup_s": 0.5
+        }
+      }
     },
-
     "judge": {
       "size_outlier_ratio": 4.5,
       "hand_score": 0.3,

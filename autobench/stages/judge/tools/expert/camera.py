@@ -10,10 +10,6 @@ from .....app.types import Item, RuleResult
 from ...experts import sam as sam_expert
 from ...experts import waft as waft_expert
 
-ZOOM_TOL = 0.35        # |log zoom| 超过这个才算真变焦（约 1.4 倍）
-EXCESS_TOL = 3.0       # 主体比背景放大得快这么多倍，是伪影
-
-
 def _axis(value: float, want: str, positive: str, negative: str,
           minimum: float, rest: float) -> bool:
     if want == "any":
@@ -26,7 +22,7 @@ def _axis(value: float, want: str, positive: str, negative: str,
     return value < minimum
 
 
-def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | None:
+def decide(item: Item, folder: Path, meta: dict, checks: dict) -> RuleResult | None:
     flow_file = folder / "waft.flow.npz"
     if not flow_file.exists():
         return None
@@ -47,6 +43,7 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
         if subject.sum() >= 20:
             fg_s.append(waft_expert.fit(grid[subject], grid[subject] + d[subject])[0])
 
+    frames = meta["frames"]
     steps = frames - 1
     pan_frac = -np.mean([t[0] for t in bg_t]) * steps / w
     pan_signs = [-t[0] for t in bg_t]
@@ -73,9 +70,9 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
         if not _axis(np.log(zoom), item.params["zoom"], "in", "out",
                      np.log(limits["zoom_min_ratio"]), np.log(1 + still)):
             failed.append("zoom")
-    elif abs(np.log(zoom)) > ZOOM_TOL:
+    elif abs(np.log(zoom)) > limits["zoom_tol_log"]:
         failed.append("zoom")
-    if item.params["position"] == "fixed" and excess is not None and excess > EXCESS_TOL:
+    if item.params["position"] == "fixed" and excess is not None and excess > limits["position_excess_max"]:
         failed.append("position")
 
     if failed:

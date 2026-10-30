@@ -14,7 +14,7 @@ from .....app.types import Item, RuleResult
 from ...experts import pose as pose_expert
 
 
-def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | None:
+def decide(item: Item, folder: Path, meta: dict, checks: dict) -> RuleResult | None:
     want = item.params.get("hand")
     if want not in ("left", "right", "both"):
         return None
@@ -62,8 +62,9 @@ def decide(item: Item, folder: Path, frames: int, checks: dict) -> RuleResult | 
                 near = min(float(np.min(np.hypot(xs - x, ys - y))) for x, y in pts[::4])
                 close[side].append(near)
 
-    left = float(np.median(close["left"])) if len(close["left"]) >= 3 else None
-    right = float(np.median(close["right"])) if len(close["right"]) >= 3 else None
+    minimum = item.rule["min_frames"]
+    left = float(np.median(close["left"])) if len(close["left"]) >= minimum else None
+    right = float(np.median(close["right"])) if len(close["right"]) >= minimum else None
     measured = {"left_hand_distance_px": left, "right_hand_distance_px": right,
                 "frames_left": len(close["left"]), "frames_right": len(close["right"]),
                 "label_convention": "uncalibrated (mirrored views swap left/right in the pose model)"}

@@ -130,7 +130,7 @@ def build(plan: Plan, located: dict, folder: Path, meta: dict, config) -> dict:
                                        located, fps, count, duration, margin, tracks, flow, pose,
                                        sam_files, masks_for, judge_thresholds, checks)
         if item.judged_by != "rule" and item.type in RULES:
-            result = RULES[item.type](item, folder, count, checks)
+            result = RULES[item.type](item, folder, meta, checks)
             if result is not None:
                 evidence[item.id]["rule_numbers"] = {
                     "status_if_decided_by_rule": result.status, "measured": result.measured,
