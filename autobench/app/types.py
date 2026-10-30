@@ -114,6 +114,35 @@ class Flag:
 
 
 @dataclass(frozen=True)
+class RuleResult:
+    """规则判定的结果。必须带 measured：没有数字的 pass 是"没看见"，不是"没问题"。"""
+
+    status: str                      # pass / partial / fail
+    measured: dict[str, Any] = field(default_factory=dict)
+    failed: tuple[str, ...] = ()
+    review: bool = False
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        if self.status not in ("pass", "partial", "fail"):
+            raise ContractError(f"规则状态只能是 pass/partial/fail，得到 {self.status!r}")
+        if self.status == "pass" and not _has_number(self.measured):
+            raise ContractError("规则的 pass 必须带数字：没有测量的通过等于没看见")
+
+
+def _has_number(value: Any) -> bool:
+    if isinstance(value, bool) or value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return True
+    if isinstance(value, dict):
+        return any(_has_number(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_has_number(v) for v in value)
+    return False
+
+
+@dataclass(frozen=True)
 class Verdict:
     """一个检查项的判定。MEASURED 必须有值，另外两种必须没有值。"""
 
