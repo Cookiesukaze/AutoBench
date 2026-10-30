@@ -49,6 +49,8 @@ class Item:
     standard: str
     rule: dict[str, Any] = field(default_factory=dict)
     levels: tuple[float, ...] = ()
+    params: dict[str, Any] = field(default_factory=dict)
+    concepts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.judged_by not in JUDGED_BY:
@@ -66,6 +68,7 @@ class Event:
     completion: dict[str, str]
     constraints: tuple[Item, ...] = ()
     physics: tuple[Item, ...] = ()
+    concepts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         missing = {"full", "partial", "none"} - set(self.completion)
@@ -80,6 +83,7 @@ class Plan:
     reference_sha256: str
     events: tuple[Event, ...]
     items: tuple[Item, ...] = ()
+    subject_descriptions: dict[str, str] = field(default_factory=dict)
 
     def all_items(self) -> Iterator[Item]:
         for event in self.events:
