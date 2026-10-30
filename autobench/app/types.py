@@ -66,6 +66,7 @@ class Event:
     id: str
     what: str
     completion: dict[str, str]
+    dimension: str
     constraints: tuple[Item, ...] = ()
     physics: tuple[Item, ...] = ()
     concepts: tuple[str, ...] = ()

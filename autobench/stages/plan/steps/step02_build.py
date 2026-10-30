@@ -277,6 +277,7 @@ def build(spec: dict, question_id: str, image_sha256: str, checks: dict) -> Plan
                     tuple(concepts), {"actor": actor, "target": target["id"]}))
 
         events.append(Event(id=eid, what=body, completion=completion,
+                            dimension=checks["checks"]["action"]["dimension"],
                             constraints=tuple(constraints), physics=tuple(physics),
                             concepts=tuple(concepts)))
 
