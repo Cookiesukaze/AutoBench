@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from ...app.config import Config
-from ...app.types import Plan, split_unit
+from ...app.types import ContractError, Plan, split_unit
 from .audit import dimensions as audit_dimensions
 from .steps import step01_video, step02_aggregate, step03_leaderboard
 
@@ -24,7 +24,8 @@ def _options(config: Config) -> step03_leaderboard.Options:
     w = config.checks["weights"]
     b = w["bootstrap"]
     return step03_leaderboard.Options(
-        category_weights={"content": float(w["content"]), "physics": float(w["physics"])},
+        category_weights={"content": float(w["content"]), "physics": float(w["physics"]),
+                          "quality": float(w["quality"])},
         min_coverage=float(w["min_coverage"]),
         n_boot=int(b["n"]), seed=int(b["seed"]), alpha=float(b["alpha"]),
         separable_at=float(b["separable_at"]),
@@ -60,7 +61,7 @@ def run(results: dict[str, dict[str, dict]], plans: dict[str, Plan],
             }
             try:
                 row["total"] = score.total(weights)
-            except Exception:
+            except ContractError:
                 row["total"] = None
             per_video[config_name][unit] = row
 
@@ -79,7 +80,8 @@ def run(results: dict[str, dict[str, dict]], plans: dict[str, Plan],
                              + quality * weights["quality"]) / sum(weights.values())
         rows["quality"] = quality
 
-    board = step03_leaderboard.rank(rows_for_board, _options(config),
-                                    config.checks["weights"]["categories"])
+    board = step03_leaderboard.rank(
+        rows_for_board, _options(config), config.checks["weights"]["categories"],
+        {c: per_config[c]["quality"] for c in per_config})
     audit = audit_dimensions.summarize(rows_for_board)
     return {"per_video": per_video, "per_config": per_config, "board": board, "dimensions": audit}

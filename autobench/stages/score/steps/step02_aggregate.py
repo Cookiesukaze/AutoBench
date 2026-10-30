@@ -19,14 +19,12 @@ def aggregate(by_unit: dict[str, Score]) -> dict:
         for dim, value in score.by_dimension.items():
             if value is not None:
                 dims[dim].append(value)
-    judged = sum(1 for s in scores if s.coverage is not None)
     coverage = _mean([s.coverage for s in scores])
     seeds: dict[str, list[Score]] = defaultdict(list)
     for unit, score in by_unit.items():
         seeds[split_unit(unit)[1]].append(score)
     return {
         "videos": len(scores),
-        "judged_videos": judged,
         "instruction": _mean([s.instruction for s in scores if s.instruction is not None]),
         "physics": _mean([s.physics for s in scores if s.physics is not None]),
         "by_dimension": {d: _mean(v) for d, v in sorted(dims.items())},

@@ -33,7 +33,7 @@ class Record:
 
 @dataclass
 class Options:
-    category_weights: dict = field(default_factory=lambda: {"content": 1.0, "physics": 1.0})
+    category_weights: dict = field(default_factory=lambda: {"content": 1.0, "physics": 1.0, "quality": 1.0})
     min_coverage: float = 0.5
     n_boot: int = 2000
     seed: int = 20261027
@@ -118,38 +118,6 @@ def _dim_scores(t: dict, weights: np.ndarray) -> np.ndarray:
         return np.where(den > 0, num / den, np.nan)
 
 
-def _totals(dim_scores: np.ndarray, board: list[str], category_weights: dict,
-            dims: list[str], categories: dict[str, str], rows: list[int] | None = None) -> np.ndarray:
-    index = {d: i for i, d in enumerate(dims)}
-    by_cat: dict[str, list[int]] = defaultdict(list)
-    for d in board:
-        by_cat[_category(d, categories)].append(index[d])
-    cats = {c: ix for c, ix in by_cat.items() if category_weights.get(c, 0) > 0}
-    if not cats:
-        raise ValueError("没有可汇总的类别")
-    have = ~np.isnan(dim_scores)
-    if rows is not None:
-        have = have & have[:, rows, :].all(axis=1, keepdims=True)
-    filled = np.where(have, dim_scores, 0.0)
-    num = np.zeros(dim_scores.shape[:2])
-    den = np.zeros(dim_scores.shape[:2])
-    for c, ix in cats.items():
-        n = have[:, :, ix].sum(axis=2)
-        cat = np.where(n > 0, filled[:, :, ix].sum(axis=2) / np.maximum(n, 1), np.nan)
-        present = ~np.isnan(cat)
-        if rows is not None:
-            present = present & present[:, rows].all(axis=1, keepdims=True)
-        num += np.where(present, category_weights[c] * np.nan_to_num(cat), 0.0)
-        den += np.where(present, category_weights[c], 0.0)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        out = np.where(den > 0, num / den, np.nan)
-    if rows is not None:
-        for c, ix in cats.items():
-            ok = have[:, rows, :][:, :, ix].any(axis=2).all(axis=1)
-            out[~ok, :] = np.nan
-    return out
-
-
 def _board(t: dict, ranked: list[str], options: Options, categories: dict[str, str]) -> tuple[list[str], dict]:
     rows = [t["configs"].index(c) for c in ranked]
     board, dropped = [], {}
@@ -181,8 +149,51 @@ def _interval(col: np.ndarray, lo: float, hi: float) -> list:
     return [float(np.percentile(x, lo)), float(np.percentile(x, hi))] if len(x) else [None, None]
 
 
+def _quality(quality: dict[str, float | None], config: str) -> float:
+    """没有画质分就是 NaN：宁可不排名，也不拿内容分冒充总分。"""
+    value = quality.get(config)
+    return float("nan") if value is None else float(value)
+
+
+def _category_means(dim_scores: np.ndarray, board: list[str], dims: list[str],
+                    categories: dict[str, str], cats: list[str]) -> np.ndarray:
+    """[..., C, 类别] 的类别均分。维度先归到类别，再在类别内平均。"""
+    index = {d: i for i, d in enumerate(dims)}
+    out = []
+    for cat in cats:
+        ix = [index[d] for d in board if _category(d, categories) == cat]
+        if not ix:
+            out.append(np.full(dim_scores.shape[:2], np.nan))
+        else:
+            out.append(np.nanmean(dim_scores[..., ix], axis=-1))
+    return np.stack(out, axis=-1)
+
+
+def _total(category_means: np.ndarray, weights: dict[str, float],
+           quality: np.ndarray) -> np.ndarray:
+    """三个维度 1:1:1 的总分。任何一维缺失就是 NaN，不重新分配权重。
+
+    quality 是配置级常数，按配置广播到每个重采样上。
+    """
+    cats = ["content", "physics", "quality"]
+    w = np.array([weights[c] for c in cats], dtype=float)
+    means = np.array(category_means, dtype=float, copy=True)
+    if means.ndim == 2:
+        means = means[None]
+    q = np.broadcast_to(np.asarray(quality, dtype=float), means.shape[:2])
+    means[..., 2] = q
+    present = ~np.isnan(means)
+    numerator = np.where(present, np.nan_to_num(means) * w, 0.0).sum(axis=-1)
+    denominator = (present * w).sum(axis=-1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        out = np.where(denominator > 0, numerator / denominator, np.nan)
+    # 缺任何一维 → 总分未定：不用剩下的维度凑一个数。
+    return np.where(present.all(axis=-1), out, np.nan)
+
+
 def rank(by_config: dict[str, dict[str, list[dict]]], options: Options,
-         categories: dict[str, str], excluded: dict | None = None) -> dict:
+         categories: dict[str, str], quality: dict[str, float | None],
+         excluded: dict | None = None) -> dict:
     excluded = excluded or {}
     t = _to_tensor(cells(records(by_config, categories), categories))
     unknown = sorted(set(excluded) - set(t["configs"]))
@@ -200,10 +211,14 @@ def rank(by_config: dict[str, dict[str, list[dict]]], options: Options,
     boot_w = np.stack([np.bincount(row, minlength=len(t["questions"])) for row in draws])
 
     idx = [t["configs"].index(c) for c in ranked]
+    cats = ["content", "physics", "quality"]
+    q_vec = np.array([_quality(quality, c) for c in t["configs"]], dtype=float).reshape(1, -1)
     point_dim = _dim_scores(t, np.ones(len(t["questions"])))[0]
-    point_total = _totals(point_dim[None], board, options.category_weights, t["dims"], categories, idx)[0]
+    point_total = _total(_category_means(point_dim[None], board, t["dims"], categories, cats)[0],
+                         options.category_weights, q_vec)[0]
     boot_dim = _dim_scores(t, boot_w)
-    boot_total = _totals(boot_dim, board, options.category_weights, t["dims"], categories, idx)
+    boot_total = _total(_category_means(boot_dim, board, t["dims"], categories, cats),
+                        options.category_weights, q_vec)
     valid = ~np.isnan(boot_total[:, idx]).any(axis=1)
     bt = boot_total[valid][:, idx]
     lo, hi = 100 * options.alpha / 2, 100 * (1 - options.alpha / 2)
@@ -238,6 +253,7 @@ def rank(by_config: dict[str, dict[str, list[dict]]], options: Options,
         for cat in sorted({_category(d, categories) for d in board}):
             ix = [t["dims"].index(d) for d in board if _category(d, categories) == cat]
             cats_out[cat] = float(point_dim[ci, ix].mean())
+        cats_out["quality"] = quality.get(c)
         rows_out[c].update({
             "total": float(point_total[ci]), "total_ci": _interval(bt[:, k], lo, hi),
             "categories": cats_out, "rank": int(_rank_of(point_total[idx])[k]),
