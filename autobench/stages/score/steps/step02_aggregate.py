@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from ....app.types import Score, split_unit
+from ....app.data.types import Score, split_unit
 
 
 def _mean(values: list[float]) -> float | None:

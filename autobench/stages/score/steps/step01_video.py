@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from ....app.types import ContractError, Outcome, Plan, Score, Verdict
+from ....app.data.types import ContractError, Outcome, Plan, Score, Verdict
 
 VALUE = {"pass": 1.0, "partial": 0.5, "fail": 0.0}
 PHYSICS_PREFIX = "MP"

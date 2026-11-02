@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ....app.types import ContractError, Item, Plan
+from ....app.data.types import ContractError, Item, Plan
 
 RULES_IMPLEMENTED = ("camera", "continuity", "persistence", "contact", "hand_side")
 

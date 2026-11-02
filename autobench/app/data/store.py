@@ -1,0 +1,215 @@
+"""路径拼装与所有文件读写。
+
+一次评测的全部产物都在 <data_root>/<runs_subdir>/<run_id>/ 下面，结构固定：
+模块只向这里要路径，不自己拼；落盘只有这里一个出口。
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import time
+import threading
+from contextlib import contextmanager
+from typing import Iterator
+from pathlib import Path
+from typing import Any
+
+from ..config import Config
+from .types import ContractError
+
+RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+ARTIFACTS = ("plan", "evidence", "quality", "judged")
+
+
+class Store:
+    def __init__(self, config: Config, run_id: str):
+        if not RUN_ID_RE.match(run_id):
+            raise ContractError(f"run_id 只能含字母数字和 ._-，得到 {run_id!r}")
+        local = config.paths["local"]
+        self.run_id = run_id
+        self.root = Path(local["data_root"]) / local["runs_subdir"] / run_id
+        self._cost_lock = threading.Lock()
+
+    # 产物路径 -------------------------------------------------------------
+
+    def plan_file(self, question: str) -> Path:
+        from ..batch.inputs import safe_name
+
+        safe_name(question)
+        return self.root / "plan" / f"{question}.json"
+
+    def evidence_dir(self, config_name: str, unit: str) -> Path:
+        from ..batch.inputs import safe_name
+
+        safe_name(config_name)
+        safe_name(unit)
+        return self.root / "evidence" / f"{config_name}_{unit}"
+
+    def quality_file(self, unit: str) -> Path:
+        return self.root / "quality" / f"{unit}.json"
+
+    def judged_dir(self, config_name: str, unit: str) -> Path:
+        from ..batch.inputs import safe_name
+
+        safe_name(config_name)
+        safe_name(unit)
+        return self.root / "judged" / f"{config_name}_{unit}"
+
+    def result_file(self, config_name: str, unit: str) -> Path:
+        return self.judged_dir(config_name, unit) / "result.json"
+
+    @property
+    def cost_file(self) -> Path:
+        return self.root / "cost.jsonl"
+
+    @property
+    def score_file(self) -> Path:
+        return self.root / "score.json"
+
+    @property
+    def board_dir(self) -> Path:
+        return self.root / "board"
+
+    # 读写 -----------------------------------------------------------------
+
+    def read_json(self, path: Path) -> Any:
+        if not path.exists():
+            raise ContractError(f"找不到 {path}；上游阶段没跑或产物被删了")
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ContractError(f"{path} 不是合法 JSON：{exc}") from exc
+
+    @staticmethod
+    def write_json(path: Path, data: Any) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + f".{os.getpid()}.{threading.get_ident()}.tmp")
+        tmp.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False),
+            encoding="utf-8",
+        )
+        os.replace(tmp, path)
+
+    def append_cost(self, record: dict) -> None:
+        """一行一次追加，不改旧记录：重跑一个阶段只会多几行，不会覆盖历史。"""
+        self.cost_file.parent.mkdir(parents=True, exist_ok=True)
+        with self._cost_lock:
+            with self.cost_file.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def read_cost(self) -> list[dict]:
+        if not self.cost_file.exists():
+            raise ContractError(f"还没有成本记录：{self.cost_file}")
+        return [
+            json.loads(line)
+            for line in self.cost_file.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    def judged_units(self) -> dict[str, list[str]]:
+        """已经判过的 {配置: [unit]}，按目录名读出来，不猜。"""
+        folder = self.root / "judged"
+        if not folder.exists():
+            raise ContractError(f"{folder} 不存在：judge 阶段还没跑")
+        out: dict[str, list[str]] = {}
+        for path in sorted(folder.iterdir()):
+            if (
+                not path.is_dir()
+                or "__seed" not in path.name
+                or not (path / "result.json").exists()
+            ):
+                continue
+            identity = path / "identity.json"
+            if identity.exists():
+                row = self.read_json(identity)
+                config_name, unit = row["config"], row["unit"]
+            else:
+                config_name, unit = path.name.split("_", 1)
+            out.setdefault(config_name, []).append(unit)
+        if not out:
+            raise ContractError(f"{folder} 里没有任何判定结果")
+        return out
+
+    def units(self, config_name: str) -> list[str]:
+        """这个配置已经判过的 unit，按目录名排序读出来，不猜。"""
+        folder = self.root / "judged"
+        if not folder.exists():
+            raise ContractError(f"{folder} 不存在：judge 阶段还没跑")
+        prefix = f"{config_name}_"
+        return sorted(
+            p.name[len(prefix) :]
+            for p in folder.iterdir()
+            if p.is_dir() and p.name.startswith(prefix)
+        )
+
+
+STAGES = ("plan", "basic_quality", "quality", "judge", "score")
+
+
+class Recorder:
+    def __init__(self) -> None:
+        self.records: list[dict] = []
+        self._pending: dict | None = None
+        self._written = 0
+
+    def model_call(self, tokens_in: int, tokens_out: int, cached: bool) -> None:
+        """一次模型调用的用量。缓存命中记 0 token，但算一次命中。"""
+        if self._pending is None:
+            raise RuntimeError("model_call 必须在 stage 上下文里调用")
+        self._pending["calls"] += 1
+        self._pending["cache_hits"] += int(cached)
+        self._pending["tokens_in"] += tokens_in
+        self._pending["tokens_out"] += tokens_out
+
+    @contextmanager
+    def stage(self, stage: str, unit: str, *, store=None, **extra) -> Iterator[None]:
+        if stage not in STAGES:
+            raise ValueError(f"未知阶段 {stage!r}")
+        self._pending = {"calls": 0, "cache_hits": 0, "tokens_in": 0, "tokens_out": 0}
+        started = time.perf_counter()
+        try:
+            yield
+        finally:
+            self.records.append(
+                {
+                    "stage": stage,
+                    "unit": unit,
+                    "wall_s": round(time.perf_counter() - started, 3),
+                    **self._pending,
+                    **extra,
+                }
+            )
+            if store is not None:
+                self.write(store)
+
+    def write(self, store: Store) -> None:
+        """只写还没写过的记录，重复调用不会把同一条记两遍。"""
+        for record in self.records[self._written :]:
+            store.append_cost(record)
+        self._written = len(self.records)
+
+    def summary(self) -> dict:
+        """按阶段汇总，再给一行总计。"""
+        out: dict[str, dict] = {}
+        for record in self.records:
+            row = out.setdefault(
+                record["stage"],
+                {
+                    "stages": 0,
+                    "wall_s": 0.0,
+                    "calls": 0,
+                    "cache_hits": 0,
+                    "tokens_in": 0,
+                    "tokens_out": 0,
+                },
+            )
+            row["stages"] += 1
+            for key in ("wall_s", "calls", "cache_hits", "tokens_in", "tokens_out"):
+                row[key] += record[key]
+        out["total"] = {
+            k: sum(r[k] for r in out.values())
+            for k in ("wall_s", "calls", "cache_hits", "tokens_in", "tokens_out")
+        }
+        return out

@@ -1,18 +1,16 @@
 {
   "_notes": {
     "local": "本机的数据和产物放哪里",
-    "remote": "GPU 机器上的路径、三个解释器、专家用哪个解释器、ssh 与轮询超时"
+    "remote": "GPU 机器上的路径、三个解释器、专家用哪个解释器、ssh 与轮询超时",
+    "dover": "remote.dover_repo 为 null 时不启用，需指向包含 dover_batch.py 与 dover.yml 的已安装目录"
   },
-
   "local": {
     "data_root": "E:/Project3s/autoinferopt/outputs",
     "runs_subdir": "autobench"
   },
-
   "remote": {
     "host": "A800",
     "base": "/home/zfj/data/video",
-
     "repo": "repos/AutoInferOpt",
     "third_party": "repos/AutoInferOpt/third_party/evaluation/benchmark_20261019",
     "expert_weights": {
@@ -27,7 +25,6 @@
       "dinov3": "sam_dino_validation/dinov3.json",
       "pose": "rtmw/pose.json"
     },
-
     "python": {
       "tracker": "envs/AutoInferOpt/benchmark_tracker_20261019/bin/python",
       "main": "envs/AutoInferOpt/benchmark_20261019/bin/python",
@@ -38,12 +35,13 @@
       "waft": "tracker",
       "sam31": "main",
       "dinov3": "main",
-      "pose": "hadm"
+      "pose": "hadm",
+      "hadm": "hadm",
+      "musiq": "tracker",
+      "dover": "main"
     },
-
     "assets": "assets/AutoInferOpt",
     "archive": "outputs/AutoInferOpt/archive",
-
     "timeouts": {
       "ssh_s": 120,
       "connect_s": 20,
@@ -52,6 +50,15 @@
       "start_sleep_s": 3,
       "poll_s": 30,
       "poll_limit_s": 10800
+    },
+    "hadm": {
+      "repo": "repos/AutoInferOpt/third_party/evaluation/HADM",
+      "weights": "models/AutoInferOpt/evaluators/HADM/HADM-L_0249999.pth"
+    },
+    "dover_repo": null,
+    "musiq": {
+      "weights": "models/AutoInferOpt/evaluators/pyiqa_weights/hub/pyiqa/musiq_koniq_ckpt-e95806b9.pth",
+      "sha256": "e95806b9eae5f3814c410f574ba8e552362bd5bc63d758ed5b97860f5d6185aa"
     }
   }
 }

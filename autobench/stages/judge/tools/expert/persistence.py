@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .....app.types import Item, RuleResult
+from .....app.data.types import Item, RuleResult
 from ...experts import sam as sam_expert
 
 

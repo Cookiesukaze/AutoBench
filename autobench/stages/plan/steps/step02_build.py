@@ -6,9 +6,8 @@
 
 from __future__ import annotations
 
-from typing import Any
 
-from ....app.types import ContractError, Event, Item, Plan
+from ....app.data.types import ContractError, Event, Item, Plan
 
 # 镜头文案需要这几个表；值来自 taskdesign/spec.py，原样搬。
 MOTIONS = {

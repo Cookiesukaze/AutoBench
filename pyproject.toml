@@ -7,7 +7,7 @@ name = "autobench"
 version = "0.1.0"
 description = "Video generation benchmark: plan, expert, quality, judge, score"
 requires-python = ">=3.10"
-dependencies = ["requests", "numpy", "pillow", "opencv-python"]
+dependencies = ["requests", "numpy", "pillow", "opencv-python", "scipy"]
 
 [project.scripts]
 autobench = "autobench.app.cli:main"

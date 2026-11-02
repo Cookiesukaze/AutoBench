@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...app.config import Config
-from ...app.types import Item, Plan
+from ...app.data.types import Plan
 from .experts import evidence as evidence_builder
 from .steps import step01_first, step02_fusion, step03_review
 from .tools.expert import camera, contact, continuity, hand_side, persistence

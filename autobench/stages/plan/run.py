@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...app.config import Config
-from ...app.types import Plan
+from ...app.data.types import Plan
 from .steps import step01_load, step02_build, step03_route
 
 

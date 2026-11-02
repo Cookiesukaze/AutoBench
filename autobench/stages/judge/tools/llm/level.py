@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .....app.types import Item
+from .....app.data.types import Item
 
 LEVELS = (1.0, 0.9, 0.5)
 

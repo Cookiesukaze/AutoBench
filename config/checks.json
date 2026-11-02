@@ -3,7 +3,8 @@
     "checks": "每类检查项：算哪个评分维度、由 VLM 还是规则判、规则的话靠哪个专家",
     "experts": "专家是否已装；没装的那项降级给 VLM 判，标 provisional",
     "weights": "三个分数各占多少、维度怎么平均、排行榜的统计参数",
-    "thresholds": "判定线：quality 下是画质（scale 共享刻度、detectors 一个检测器一条），judge 是判分常数"
+    "thresholds": "判定线：quality 下是画质（scale 共享刻度、detectors 一个检测器一条），judge 是判分常数",
+    "quality_score": "正式画质：默认迁移旧版清晰度题内百分位；percentage 模式须显式声明原始分范围；不读取问题率"
   },
   "checks": {
     "identity": {
@@ -272,5 +273,10 @@
       "hand_reach": 0.25,
       "consistency_cap": 0.5
     }
+  },
+  "quality_score": {
+    "metric": "sharpness",
+    "method": "percentile",
+    "direction": "higher"
   }
 }

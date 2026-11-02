@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from ....app.types import ContractError
+from ....app.data.types import ContractError
 
 
 def sha256(path: Path) -> str:

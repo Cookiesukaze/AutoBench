@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from ....app.config import Config
-from ....app.types import Plan
+from ....app.data.types import Plan
 from ..tools.llm import parse, vote
 from ..tools.llm.frames import extract, frame_count, locate_indices, sheet
 from ..tools.llm.prompt import render

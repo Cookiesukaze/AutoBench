@@ -1,92 +1,80 @@
-"""阶段入口：从判定结果算出分数与排行榜。
-
-不重新判定任何东西：只读 result.json 和 plan，做算术。
-质量维来自上一关的配置级 rate（1 - rate，越高越干净）。
-"""
-
-from __future__ import annotations
+"""正式三维等权计分；第一关告警不参与分值换算。"""
 
 from dataclasses import replace
-
-from ...app.config import Config
-from ...app.types import ContractError, Plan, split_unit
-from .audit import dimensions as audit_dimensions
+import math
+from ...app.data.types import ContractError
+from ...app.data.types import split_unit
 from .steps import step01_video, step02_aggregate, step03_leaderboard
+from .audit import dimensions
 
 
-def _weights(config: Config) -> dict[str, float]:
-    w = config.checks["weights"]
-    return {"instruction": float(w["content"]), "physics": float(w["physics"]),
-            "quality": float(w["quality"])}
-
-
-def _options(config: Config) -> step03_leaderboard.Options:
-    w = config.checks["weights"]
-    b = w["bootstrap"]
-    return step03_leaderboard.Options(
-        category_weights={"content": float(w["content"]), "physics": float(w["physics"]),
-                          "quality": float(w["quality"])},
-        min_coverage=float(w["min_coverage"]),
-        n_boot=int(b["n"]), seed=int(b["seed"]), alpha=float(b["alpha"]),
-        separable_at=float(b["separable_at"]),
-    )
-
-
-def run(results: dict[str, dict[str, dict]], plans: dict[str, Plan],
-        quality_rates: dict[str, float | None], config: Config) -> dict:
-    """results: {config: {unit: result.json 内容}}；plans: {question: Plan}。"""
-    weights = _weights(config)
-    aggregation = config.checks["weights"]["aggregation"]
-    per_video: dict[str, dict[str, dict]] = {}
-    rows_for_board: dict[str, dict[str, list[dict]]] = {}
-    scores_by_config: dict[str, dict[str, object]] = {}
-
-    for config_name, by_unit in sorted(results.items()):
-        rate = quality_rates.get(config_name)
-        quality = None if rate is None else 1.0 - rate
-        per_video[config_name] = {}
-        rows_for_board[config_name] = {}
-        scores_by_config[config_name] = {}
+def run(results, plans, quality_scores, config, expected=None):
+    per_video, scored, all_rows = {}, {}, {}
+    for name, by_unit in sorted(results.items()):
+        per_video[name], scored[name], all_rows[name] = {}, {}, {}
         for unit, result in sorted(by_unit.items()):
             question, _ = split_unit(unit)
-            if question not in plans:
-                raise KeyError(f"{unit}: 没有这道题的计划")
-            score, rows = step01_video.video(plans[question], result, aggregation)
-            score = replace(score, quality=quality)
-            scores_by_config[config_name][unit] = score
-            rows_for_board[config_name][unit] = rows
-            row = {
-                "instruction": score.instruction, "physics": score.physics,
-                "quality": score.quality, "coverage": score.coverage,
-            }
-            try:
-                row["total"] = score.total(weights)
-            except ContractError:
-                row["total"] = None
-            per_video[config_name][unit] = row
-
-    per_config = {c: step02_aggregate.aggregate(s) for c, s in sorted(scores_by_config.items())}
-    for config_name, rows in per_config.items():
-        parts = {"instruction": rows["instruction"], "physics": rows["physics"],
-                 "quality": quality_rates.get(config_name)}
-        quality = None if parts["quality"] is None else 1.0 - parts["quality"]
-        parts["quality"] = quality
-        if any(v is None for v in parts.values()):
-            rows["total"] = None
-            rows["total_undetermined"] = "unresolved_or_unmeasured"
-        else:
-            rows["total"] = (parts["instruction"] * weights["instruction"]
-                             + parts["physics"] * weights["physics"]
-                             + quality * weights["quality"]) / sum(weights.values())
-        rows["quality"] = quality
-
-    if len(rows_for_board) < 2:
-        # 一个配置没有"谁比谁好"，不排名；分数照常算出来，不因此丢掉整次结果。
-        board = {"ranked_order": [], "rows": {}, "board_dimensions": [], "dropped": {},
-                 "note": "参评配置少于两个，不排名"}
-    else:
-        board = step03_leaderboard.rank(
-            rows_for_board, _options(config), config.checks["weights"]["categories"],
-            {c: per_config[c]["quality"] for c in per_config})
-    audit = audit_dimensions.summarize(rows_for_board)
-    return {"per_video": per_video, "per_config": per_config, "board": board, "dimensions": audit}
+            score, rows = step01_video.video(
+                plans[question], result, config.checks["weights"]["aggregation"]
+            )
+            q = (quality_scores.get(name) or {}).get(unit)
+            if q is not None and (
+                isinstance(q, bool)
+                or not isinstance(q, (int, float))
+                or not math.isfinite(q)
+                or not 0 <= q <= 1
+            ):
+                raise ContractError(f"{name}/{unit}: 正式画质分必须在 [0,1]")
+            score = replace(score, quality=q)
+            scored[name][unit] = score
+            all_rows[name][unit] = rows
+            total = (
+                None
+                if None in (score.instruction, score.physics, q)
+                else (score.instruction + score.physics + q) / 3
+            )
+            per_video[name][unit] = dict(
+                instruction=score.instruction,
+                physics=score.physics,
+                quality=q,
+                total=total,
+                coverage=score.coverage,
+                undetermined=step01_video.undetermined(result),
+            )
+    expected = (
+        expected
+        if expected is not None
+        else {c: sorted(by) for c, by in results.items()}
+    )
+    per_config = {}
+    for name in sorted(set(expected) | set(scored)):
+        by = scored.get(name, {})
+        row = step02_aggregate.aggregate(by)
+        row["quality"] = (
+            sum(s.quality for s in by.values()) / len(by)
+            if by and all(s.quality is not None for s in by.values())
+            else None
+        )
+        missing = sorted(set(expected.get(name, [])) - set(by))
+        open_units = sorted(
+            u for u, s in by.items() if None in (s.instruction, s.physics, s.quality)
+        )
+        row["missing_units"], row["undetermined_units"] = missing, open_units
+        parts = [row.get(k) for k in ("instruction", "physics", "quality")]
+        row["total"] = (
+            None if missing or open_units or None in parts else sum(parts) / 3
+        )
+        row["status"] = "undetermined" if row["total"] is None else "measured"
+        per_config[name] = row
+    board = step03_leaderboard.rank(
+        per_video,
+        per_config,
+        config.checks["weights"]["bootstrap"],
+        config.checks["weights"]["min_coverage"],
+    )
+    return dict(
+        per_video=per_video,
+        per_config=per_config,
+        board=board,
+        dimensions=dimensions.summarize(all_rows),
+    )

@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from ....app.types import Flag
+from ....app.data.types import Flag
 
 
 def _p(detector: dict) -> float:
@@ -15,8 +15,11 @@ def _p(detector: dict) -> float:
 
 def joint(flags: dict[str, Flag], detectors: dict) -> float | None:
     """一条视频的联合概率；一个检测器都没测到就是 None。"""
-    measured = {name: flag for name, flag in flags.items()
-                if flag.flagged is not None and detectors[name].get("counts") is not False}
+    measured = {
+        name: flag
+        for name, flag in flags.items()
+        if flag.flagged is not None and detectors[name].get("counts") is not False
+    }
     if not measured:
         return None
     clean = 1.0
@@ -39,7 +42,9 @@ def run(per_unit: dict[str, dict[str, dict[str, Flag]]], detectors: dict) -> dic
         values = per_config.get(config, [])
         rates[config] = {
             "rate": sum(values) / len(values) if values else None,
-            "videos": len(per_unit and {u for u, by in per_unit.items() if config in by}),
+            "videos": len(
+                per_unit and {u for u, by in per_unit.items() if config in by}
+            ),
             "measured": len(values),
         }
     return rates

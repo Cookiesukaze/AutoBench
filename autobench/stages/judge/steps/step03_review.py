@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 from ....app.config import Config
-from ....app.types import Plan
+from ....app.data.types import Plan
 from ..tools.llm import level, parse, vote
 from ..tools.llm.frames import extract, review_indices, sheet
 from ..tools.llm.prompt import render

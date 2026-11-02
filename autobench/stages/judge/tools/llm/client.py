@@ -18,7 +18,7 @@ from typing import Any
 import requests
 from PIL import Image
 
-from .....app.types import ContractError
+from .....app.data.types import ContractError
 
 BASE_URL_ENV = "AUTOBENCH_VLM_BASE_URL"
 CC_SWITCH_URL = re.compile(r'^\s*base_url\s*=\s*"([^"]+)"', re.M)

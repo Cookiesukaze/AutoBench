@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from string import Template
 
-from .....app.types import ContractError
+from .....app.data.types import ContractError
 
 PROMPT_DIR = Path(__file__).resolve().parents[4] / "prompt"
 

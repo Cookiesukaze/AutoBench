@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from ....app.types import split_unit
+from ....app.data.types import split_unit
 
 
 def summarize(by_config: dict[str, dict[str, list[dict]]]) -> dict:

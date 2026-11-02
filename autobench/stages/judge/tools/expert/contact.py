@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .....app.types import Item, RuleResult
+from .....app.data.types import Item, RuleResult
 from ...experts import pose as pose_expert
 
 

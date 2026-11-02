@@ -6,12 +6,10 @@
     "max_sam_servers": "SAM 同时最多起几个服务进程",
     "budget_gib": "每个步骤预计要占多少显存，单位 GiB"
   },
-
   "count": 4,
   "free_mib": 2000,
   "headroom_gib": 3.0,
   "max_sam_servers": 2,
-
   "budget_gib": {
     "sam31": 32.0,
     "cotracker3": 17.0,
@@ -19,6 +17,8 @@
     "dinov3": 3.0,
     "pose": 2.0,
     "hadm": 56.0,
-    "motion": 66.0
+    "motion": 66.0,
+    "musiq": 4.0,
+    "dover": 4.0
   }
 }

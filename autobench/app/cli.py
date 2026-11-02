@@ -1,74 +1,94 @@
-"""命令行入口：plan / quality / judge / score。"""
+"""本地与远端批次评测入口。"""
 
 from __future__ import annotations
-
 import argparse
+import json
 from pathlib import Path
-
-from . import cost, run
-from .config import load
-from .store import Store
-
-COMMANDS = ("plan", "quality", "judge", "score")
+from . import run
+from .config import load, CONFIG_DIR
+from .data.store import Recorder, Store
 
 
-def _plan(args: argparse.Namespace) -> None:
-    store = Store(load(), args.run_id)
-    plan = run.plan_one(store, load(), cost.Recorder(), args.specs, args.question, args.image_dir)
-    print(f"plan: {plan.question_id} 事件 {len(plan.events)} 检查项 {sum(1 for _ in plan.all_items())}")
-
-
-def _judge(args: argparse.Namespace) -> None:
-    store = Store(load(), args.run_id)
-    result = run.judge_one(store, load(), cost.Recorder(), args.config, args.unit,
-                           args.video, args.image, args.experts)
-    undecided = [k for k, v in result["items"].items() if v.get("status") == "unjudgeable"]
-    print(f"judge: {args.config} {args.unit} 未定 {len(undecided)} 项")
-
-
-def _score(args: argparse.Namespace) -> None:
-    store = Store(load(), args.run_id)
-    report = run.score_all(store, load(), cost.Recorder())
-    rows = report["board"]["rows"]
-    print("score:", [(c, None if rows[c]["total"] is None else round(rows[c]["total"], 4))
-                     for c in report["board"]["ranked_order"]])
-
-
-def _quality(args: argparse.Namespace) -> None:
-    report = run.quality(Store(load(), args.run_id), load(), cost.Recorder(),
-                         args.quality_dir, args.units)
-    print("quality:", {c: (None if r is None else round(r, 3)) for c, r in report["rates"].items()})
-
-
-def main(argv: list[str] | None = None) -> None:
+def main(argv=None):
     parser = argparse.ArgumentParser(prog="autobench")
     sub = parser.add_subparsers(dest="command", required=True)
-
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--run-id", required=True, help="这一次评测的目录名")
-
+    common.add_argument("--run-id", required=True)
+    common.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
     p = sub.add_parser("plan", parents=[common])
     p.add_argument("--specs", type=Path, required=True)
     p.add_argument("--question", required=True)
     p.add_argument("--image-dir", type=Path, required=True)
-    p.set_defaults(func=_plan)
-
-    q = sub.add_parser("quality", parents=[common])
-    q.add_argument("--quality-dir", type=Path, required=True,
-                   help="归档测量目录，形如 <run>/stage/quality")
-    q.add_argument("--units", nargs="+", required=True)
-    q.set_defaults(func=_quality)
-
+    for name in ("basic-quality", "quality"):
+        q = sub.add_parser(name, parents=[common])
+        q.add_argument("--quality-dir", type=Path, required=True)
+        q.add_argument("--units", nargs="+", required=True)
+        if name == "basic-quality":
+            q.add_argument("--parents", type=Path)
     j = sub.add_parser("judge", parents=[common])
-    j.add_argument("--config", required=True, help="配置名，如 T1")
-    j.add_argument("--unit", required=True, help="形如 R041_E1_E1__seed48")
+    j.add_argument("--config", required=True)
+    j.add_argument("--unit", required=True)
     j.add_argument("--video", type=Path, required=True)
-    j.add_argument("--image", type=Path, required=True, help="参考图")
-    j.add_argument("--experts", type=Path, required=True, help="专家数组目录")
-    j.set_defaults(func=_judge)
+    j.add_argument("--image", type=Path, required=True)
+    j.add_argument("--experts", type=Path, required=True)
+    sub.add_parser("score", parents=[common])
+    b = sub.add_parser("batch", parents=[common])
+    b.add_argument("--specs", type=Path, required=True)
+    b.add_argument("--image-dir", type=Path, required=True)
+    source = b.add_mutually_exclusive_group(required=True)
+    source.add_argument("--videos", type=Path)
+    source.add_argument("--videos-dir", type=Path)
+    b.add_argument("--parents", type=Path, help="JSON: 配置名到原版配置名")
+    b.add_argument("--quality-dir", type=Path)
+    b.add_argument("--experts-dir", type=Path)
+    b.add_argument("--remote", action="store_true", help="上传并运行远端 GPU 专家")
+    b.add_argument(
+        "--judge", action="store_true", help="继续正式 VLM 判定和计分；会产生 API 请求"
+    )
+    a = parser.parse_args(argv)
+    config = load(a.config_dir)
+    store = Store(config, a.run_id)
+    rec = Recorder()
+    parents = (
+        json.loads(a.parents.read_text(encoding="utf-8"))
+        if getattr(a, "parents", None)
+        else None
+    )
+    if a.command == "plan":
+        result = run.plan_one(store, config, rec, a.specs, a.question, a.image_dir)
+        print("plan:", result.question_id)
+    elif a.command == "judge":
+        result = run.judge_one(
+            store, config, rec, a.config, a.unit, a.video, a.image, a.experts
+        )
+        print("judge:", a.config, a.unit)
+    elif a.command == "score":
+        result = run.score_all(store, config, rec)
+        print("ranked:", result["board"]["ranked_order"])
+    elif a.command == "basic-quality":
+        result = run.basic_quality(store, config, rec, a.quality_dir, a.units, parents)
+        print("basic-quality:", result["rates"])
+    elif a.command == "quality":
+        result = run.quality(store, config, rec, a.quality_dir, a.units)
+        print("quality:", result["scores"])
+    else:
+        from .batch.run import run as batch
 
-    s = sub.add_parser("score", parents=[common])
-    s.set_defaults(func=_score)
+        result = batch(
+            store,
+            config,
+            specs=a.specs,
+            image_dir=a.image_dir,
+            manifest=a.videos,
+            videos_dir=a.videos_dir,
+            parents=parents,
+            quality_dir=a.quality_dir,
+            experts_dir=a.experts_dir,
+            remote=a.remote,
+            judge=a.judge,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
-    args = parser.parse_args(argv)
-    args.func(args)
+
+if __name__ == "__main__":
+    main()
