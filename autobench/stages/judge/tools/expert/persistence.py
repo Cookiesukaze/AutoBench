@@ -76,6 +76,9 @@ def decide(item: Item, folder: Path, meta: dict, checks: dict) -> RuleResult | N
                 "concept": concept, "zero_from_sample": start_i, "zero_samples": cur_zero,
                 "peak_area_px": runmax,
                 "last_seen_frame": last_seen[0] if last_seen else None,
+                # 最后可见之后的第一个采样点：中间若冒出一块误分割，归零的起点不能被它盖住
+                "first_zero_frame": next((f for f, _ in areas if last_seen is not None and f > last_seen[0]),
+                                         areas[start_i][0]),
                 "last_seen_touches_border": border,
                 "area_explosion_after_reappear": bool(explosion),
                 "verdict_hint": ("mask stayed mid-frame, then went to zero: it vanished in place, "

@@ -220,6 +220,8 @@ def rank(by_config: dict[str, dict[str, list[dict]]], options: Options,
     boot_total = _total(_category_means(boot_dim, board, t["dims"], categories, cats),
                         options.category_weights, q_vec)
     valid = ~np.isnan(boot_total[:, idx]).any(axis=1)
+    if not valid.any():
+        raise ValueError("没有任何一次重采样拿到完整的三维总分：画质费率或判定结果缺失")
     bt = boot_total[valid][:, idx]
     lo, hi = 100 * options.alpha / 2, 100 * (1 - options.alpha / 2)
     ranks = _rank_of(bt)

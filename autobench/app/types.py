@@ -51,12 +51,15 @@ class Item:
     levels: tuple[float, ...] = ()
     params: dict[str, Any] = field(default_factory=dict)
     concepts: tuple[str, ...] = ()
+    step: str = "first"
 
     def __post_init__(self) -> None:
         if self.judged_by not in JUDGED_BY:
             raise ContractError(f"{self.id}: judged_by 只能是 {JUDGED_BY}，得到 {self.judged_by!r}")
         if self.judged_by == "rule" and not self.expert:
             raise ContractError(f"{self.id}: 规则判定的项必须写明用哪个专家")
+        if self.step not in ("first", "fusion", "expert"):
+            raise ContractError(f"{self.id}: step 只能是 first/fusion/expert，得到 {self.step!r}")
         if self.levels and 1.0 not in self.levels:
             raise ContractError(f"{self.id}: 分档 {self.levels} 里没有满分 1")
 
@@ -107,9 +110,10 @@ class Flag:
     flagged: bool | None
     routes: dict[str, Any] = field(default_factory=dict)
     suspect: bool = False
+    reason: str = ""
 
     def __post_init__(self) -> None:
-        if self.flagged is None and not self.routes:
+        if self.flagged is None and not (self.routes or self.reason):
             raise ContractError(f"检测器 {self.detector} 报未测量时必须留下原因")
 
 
@@ -187,3 +191,41 @@ class Score:
         if not used:
             raise ContractError("三个维度的权重全为 0，算不出总分")
         return sum(used[name] * parts[name] for name in used) / sum(used.values())
+
+
+def plan_to_dict(plan: Plan) -> dict[str, Any]:
+    """计划的存盘形态。只存判定需要的东西，不存派生数据。"""
+    def item(row: Item) -> dict[str, Any]:
+        return {"id": row.id, "type": row.type, "dimension": row.dimension,
+                "judged_by": row.judged_by, "expert": row.expert, "standard": row.standard,
+                "rule": row.rule, "levels": list(row.levels), "params": row.params,
+                "concepts": list(row.concepts), "step": row.step}
+
+    return {"question_id": plan.question_id, "prompt": plan.prompt,
+            "reference_sha256": plan.reference_sha256,
+            "subject_descriptions": plan.subject_descriptions,
+            "events": [{"id": e.id, "what": e.what, "completion": e.completion,
+                        "dimension": e.dimension, "concepts": list(e.concepts),
+                        "constraints": [item(i) for i in e.constraints],
+                        "physics": [item(i) for i in e.physics]} for e in plan.events],
+            "items": [item(i) for i in plan.items]}
+
+
+def plan_from_dict(data: dict[str, Any]) -> Plan:
+    def item(row: dict[str, Any]) -> Item:
+        return Item(id=row["id"], type=row["type"], dimension=row["dimension"],
+                    judged_by=row["judged_by"], expert=row.get("expert"),
+                    standard=row["standard"], rule=dict(row.get("rule") or {}),
+                    levels=tuple(row.get("levels") or ()), params=dict(row.get("params") or {}),
+                    concepts=tuple(row.get("concepts") or ()), step=row.get("step", "first"))
+
+    return Plan(question_id=data["question_id"], prompt=data["prompt"],
+                reference_sha256=data["reference_sha256"],
+                events=tuple(Event(id=e["id"], what=e["what"], completion=e["completion"],
+                                   dimension=e["dimension"],
+                                   constraints=tuple(item(i) for i in e["constraints"]),
+                                   physics=tuple(item(i) for i in e["physics"]),
+                                   concepts=tuple(e.get("concepts") or ()))
+                             for e in data["events"]),
+                items=tuple(item(i) for i in data["items"]),
+                subject_descriptions=dict(data.get("subject_descriptions") or {}))

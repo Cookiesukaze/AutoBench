@@ -151,6 +151,13 @@ def concept(subject: dict) -> str:
 
 # 构造 ------------------------------------------------------------------
 
+def _step(judged_by: str, expert: str | None) -> str:
+    """规则自己判；要专家证据的项等融合阶段再问；其余首轮就判。"""
+    if judged_by == "rule":
+        return "expert"
+    return "fusion" if expert else "first"
+
+
 def item(checks: dict, item_id: str, type_name: str, standard: str,
          concepts: tuple[str, ...] = (), params: dict | None = None,
          levels: tuple[float, ...] = BINARY) -> Item:
@@ -163,6 +170,7 @@ def item(checks: dict, item_id: str, type_name: str, standard: str,
         standard=standard, rule=dict(spec.get("rule") or {}),
         levels=tuple(spec.get("levels") or levels),
         params=dict(params or {}), concepts=tuple(concepts),
+        step=_step(spec["judged_by"], spec.get("expert")),
     )
 
 

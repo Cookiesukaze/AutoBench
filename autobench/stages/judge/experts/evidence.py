@@ -136,7 +136,8 @@ def build(plan: Plan, located: dict, folder: Path, meta: dict, config) -> dict:
                     "status_if_decided_by_rule": result.status, "measured": result.measured,
                     "failed_components": list(result.failed),
                     "note": "uncalibrated rule: numbers for reference, not a verdict"}
-        if item.type == "contact" and pose is not None and item.concepts:
+        if (item.type == "contact" and pose is not None and item.concepts
+                and evidence[item.id]["window_seconds"] is not None):
             target = item.concepts[-1]
             masks = masks_for(target)
             if masks is not None:

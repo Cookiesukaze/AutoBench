@@ -45,6 +45,10 @@ class Store:
         return self.judged_dir(config_name, unit) / "result.json"
 
     @property
+    def cost_file(self) -> Path:
+        return self.root / "cost.jsonl"
+
+    @property
     def score_file(self) -> Path:
         return self.root / "score.json"
 
@@ -67,6 +71,33 @@ class Store:
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(tmp, path)
+
+    def append_cost(self, record: dict) -> None:
+        """一行一次追加，不改旧记录：重跑一个阶段只会多几行，不会覆盖历史。"""
+        self.cost_file.parent.mkdir(parents=True, exist_ok=True)
+        with self.cost_file.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def read_cost(self) -> list[dict]:
+        if not self.cost_file.exists():
+            raise ContractError(f"还没有成本记录：{self.cost_file}")
+        return [json.loads(line) for line in self.cost_file.read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+
+    def judged_units(self) -> dict[str, list[str]]:
+        """已经判过的 {配置: [unit]}，按目录名读出来，不猜。"""
+        folder = self.root / "judged"
+        if not folder.exists():
+            raise ContractError(f"{folder} 不存在：judge 阶段还没跑")
+        out: dict[str, list[str]] = {}
+        for path in sorted(folder.iterdir()):
+            if not path.is_dir() or "__seed" not in path.name:
+                continue
+            config_name, unit = path.name.split("_", 1)
+            out.setdefault(config_name, []).append(unit)
+        if not out:
+            raise ContractError(f"{folder} 里没有任何判定结果")
+        return out
 
     def units(self, config_name: str) -> list[str]:
         """这个配置已经判过的 unit，按目录名排序读出来，不猜。"""

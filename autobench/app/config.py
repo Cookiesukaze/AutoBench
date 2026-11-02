@@ -100,16 +100,19 @@ def _validate_checks(d: dict[str, Any]) -> None:
         raise ContractError("weights.min_coverage 应在 [0,1]")
 
     t = d["thresholds"]
-    _need("thresholds", t, ("scale", "detectors", "judge"))
+    _need("thresholds", t, ("quality", "judge"))
+    _need("thresholds.quality", t["quality"], ("scale", "detectors"))
+    t = {"scale": t["quality"]["scale"], "detectors": t["quality"]["detectors"],
+         "judge": t["judge"]}
     _need("thresholds.scale", t["scale"],
-          ("screen_score", "danger_score", "score_center_z", "mad_to_sigma",
+          ("screen_score", "danger_score", "score_center_z", "parent_z", "mad_to_sigma",
            "min_configs", "bad_share", "config_threshold"))
-    if _number("thresholds.scale.danger_score", t["scale"]["danger_score"]) <= \
-            _number("thresholds.scale.screen_score", t["scale"]["screen_score"]):
-        raise ContractError("thresholds.scale.danger_score 必须高于 screen_score")
+    if _number("thresholds.quality.scale.danger_score", t["scale"]["danger_score"]) <= \
+            _number("thresholds.quality.scale.screen_score", t["scale"]["screen_score"]):
+        raise ContractError("thresholds.quality.scale.danger_score 必须高于 screen_score")
 
     for name, spec in t["detectors"].items():
-        where = f"thresholds.detectors.{name}"
+        where = f"thresholds.quality.detectors.{name}"
         _need(where, spec, ("worse_when",))
         if spec["worse_when"] not in DIRECTIONS:
             raise ContractError(f"{where}.worse_when 只能是 {DIRECTIONS}")
@@ -128,24 +131,54 @@ def _validate_checks(d: dict[str, Any]) -> None:
 
 def _validate_vlm(d: dict[str, Any]) -> None:
     _need("vlm.json", d, ("model", "effort", "max_output_tokens", "image", "frames",
-                          "timeout", "retry", "review_samples", "concurrency", "endpoint"))
+                          "timeout", "retry", "vote", "concurrency", "endpoint", "budget"))
     _need("vlm.image", d["image"], ("max_side", "jpeg_quality", "detail", "max_per_request"))
     if d["image"]["detail"] not in DETAILS:
         raise ContractError(f"vlm.image.detail 只能是 {DETAILS}")
     if int(d["image"]["max_per_request"]) < 1:
         raise ContractError("vlm.image.max_per_request 应至少为 1")
     _need("vlm.frames", d["frames"], ("locate", "window", "review", "review_margin_s",
-                                      "event_margin_s", "end_window_s", "jpeg_quality"))
+                                      "event_margin_s", "end_window_s", "jpeg_quality",
+                                      "stagger_votes", "sheet", "event_tail_to", "review_sheets"))
+    if d["frames"]["event_tail_to"] not in ("margin", "next", "end"):
+        raise ContractError("vlm.frames.event_tail_to 只能是 margin / next / end")
+    if not isinstance(d["frames"]["stagger_votes"], bool):
+        raise ContractError("vlm.frames.stagger_votes 只能是 true 或 false")
+    if int(d["frames"]["review_sheets"]) < 1:
+        raise ContractError("vlm.frames.review_sheets 至少为 1")
+    _need("vlm.frames.sheet", d["frames"]["sheet"], ("cols", "rows", "side", "gap", "apply_to"))
+    for key in ("cols", "rows", "side", "gap"):
+        if int(d["frames"]["sheet"][key]) < 1:
+            raise ContractError(f"vlm.frames.sheet.{key} 至少为 1")
+    stages = d["frames"]["sheet"]["apply_to"]
+    if not isinstance(stages, list) or any(s not in ("locate", "review") for s in stages):
+        raise ContractError("vlm.frames.sheet.apply_to 只能是 locate / review")
     _need("vlm.timeout", d["timeout"], ("connect_s", "read_s"))
     _need("vlm.retry", d["retry"], ("transport_attempts", "format_attempts", "stage"))
     for stage in ("first", "fusion", "review"):
         _need(f"vlm.retry.stage.{stage}", d["retry"]["stage"].get(stage, {}),
               ("attempts", "transport_sleep_s", "format_sleep_s"))
-    if int(d["review_samples"]) < 1:
-        raise ContractError("vlm.review_samples 至少为 1")
+    _need("vlm.vote", d["vote"], ("first", "fusion", "review", "max_votes"))
+    for stage in ("first", "fusion", "review"):
+        if int(d["vote"][stage]) < 1:
+            raise ContractError(f"vlm.vote.{stage} 至少为 1（1 就是只问一次）")
+    if int(d["vote"]["max_votes"]) < max(int(d["vote"][s]) for s in ("first", "fusion", "review")):
+        raise ContractError("vlm.vote.max_votes 不能小于任何阶段的票数")
     if int(d["concurrency"]) < 1:
         raise ContractError("vlm.concurrency 至少为 1")
-    _need("vlm.endpoint", d["endpoint"], ("base_url", "api_key_env"))
+    _need("vlm.budget", d["budget"], ("max_calls_per_video", "max_review_requests"))
+    if int(d["budget"]["max_review_requests"]) < 1:
+        raise ContractError("vlm.budget.max_review_requests 至少为 1")
+    if int(d["budget"]["max_calls_per_video"]) < 2:
+        raise ContractError("vlm.budget.max_calls_per_video 至少为 2（第一问+第二问）")
+    _need("vlm.endpoint", d["endpoint"], ("source", "base_url", "api_key_env"))
+    source = d["endpoint"]["source"]
+    if source not in ("env", "cc-switch"):
+        raise ContractError("vlm.endpoint.source 只能是 env 或 cc-switch")
+    if source == "cc-switch" and not d["endpoint"].get("cc_switch_db"):
+        raise ContractError("vlm.endpoint.source=cc-switch 时必须给 cc_switch_db")
+    if source == "env" and not d["endpoint"].get("api_key_env"):
+        raise ContractError("vlm.endpoint.source=env 时必须给 api_key_env")
 
 
 def _validate_paths(d: dict[str, Any]) -> None:

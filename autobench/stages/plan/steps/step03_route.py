@@ -21,8 +21,8 @@ def _route_item(item: Item, checks: dict) -> Item:
     if not item.expert:
         raise ContractError(f"{item.id}: 规则判定没有指定专家")
     if not checks["experts"][item.expert]["installed"]:
-        # 专家没装是配置里写明的事实，不是错误：这一项改由 VLM 判。
-        return replace(item, judged_by="vlm")
+        # 专家没装是配置里写明的事实，不是错误：这一项改由 VLM 判，但没有证据可等，首轮就问。
+        return replace(item, judged_by="vlm", step="first")
     return item
 
 

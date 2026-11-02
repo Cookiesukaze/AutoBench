@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from ....app.types import Outcome, Plan, Score, Verdict
+from ....app.types import ContractError, Outcome, Plan, Score, Verdict
 
 VALUE = {"pass": 1.0, "partial": 0.5, "fail": 0.0}
 PHYSICS_PREFIX = "MP"
@@ -44,11 +44,15 @@ def rows(plan: Plan, result: dict) -> list[dict]:
     """每个受评项一行：id / dimension / value / kind / why。value=None 表示退出计分。"""
     out: list[dict] = []
     for event in plan.events:
+        if event.id not in result.get("events", {}):
+            raise ContractError(f"{plan.question_id}: 事件 {event.id} 没有判定结果")
         state = result["events"][event.id]
         value = state["score"] if state["status"] == "resolved" else None
         out.append({"id": event.id, "dimension": event.dimension, "value": value,
                     "kind": "event", "why": None if value is not None else state["status"]})
     for item in plan.all_items():
+        if item.id not in result.get("items", {}):
+            raise ContractError(f"{plan.question_id}: 检查项 {item.id} 没有判定结果")
         state = result["items"][item.id]
         verdict = _verdict({**state, "id": item.id})
         value = verdict.value if verdict.outcome is Outcome.MEASURED else None

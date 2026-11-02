@@ -80,8 +80,13 @@ def run(results: dict[str, dict[str, dict]], plans: dict[str, Plan],
                              + quality * weights["quality"]) / sum(weights.values())
         rows["quality"] = quality
 
-    board = step03_leaderboard.rank(
-        rows_for_board, _options(config), config.checks["weights"]["categories"],
-        {c: per_config[c]["quality"] for c in per_config})
+    if len(rows_for_board) < 2:
+        # 一个配置没有"谁比谁好"，不排名；分数照常算出来，不因此丢掉整次结果。
+        board = {"ranked_order": [], "rows": {}, "board_dimensions": [], "dropped": {},
+                 "note": "参评配置少于两个，不排名"}
+    else:
+        board = step03_leaderboard.rank(
+            rows_for_board, _options(config), config.checks["weights"]["categories"],
+            {c: per_config[c]["quality"] for c in per_config})
     audit = audit_dimensions.summarize(rows_for_board)
     return {"per_video": per_video, "per_config": per_config, "board": board, "dimensions": audit}

@@ -25,7 +25,10 @@ def entries(specs: Path) -> dict[str, dict]:
             raise ContractError(f"{specs} 里有一条缺 {missing}")
         spec = entry.get("spec", entry.get("task"))
         if spec is None:
-            raise ContractError(f"{specs} 里 {entry['question_id']} 没有 spec/task 字段")
+            # 扁平格式：条目本身就是 spec（含 segments），题号和图片哈希也在同一层。
+            if "segments" not in entry:
+                raise ContractError(f"{specs} 里 {entry['question_id']} 既没有 spec 字段，也不像一份 spec")
+            spec = entry
         out[entry["question_id"]] = {**entry, "spec": spec}
     return out
 

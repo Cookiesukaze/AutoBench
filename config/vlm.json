@@ -4,56 +4,89 @@
     "effort": "推理力度档位",
     "max_output_tokens": "单次回答的 token 上限",
     "image": "每张图怎么压缩、单次请求最多几张",
-    "frames": "各阶段抽几帧、窗口边距多少秒、抽帧的 JPEG 质量",
+    "frames": "各阶段抽几帧、窗口边距多少秒、抽帧的 JPEG 质量；多票时各视角的帧是否错开（stagger_votes）；sheet 是把多帧拼成一张时怎么排（apply_to 写哪一层用拼接）",
     "timeout": "连接超时和读取超时，单位秒",
     "retry": "传输失败与格式失败各试几次、退避多久；每个判分阶段自己再试几轮",
-    "review_samples": "复核时每次独立采样几遍，取多数",
+    "vote": "每个阶段问几遍取多数（1 就是只问一次）；平局继续补票，补到 max_votes 还平才算未定",
     "concurrency": "同时判几条视频",
-    "endpoint": "接口地址与密钥从哪里读"
+    "endpoint": "地址与密钥从哪来：source 选 cc-switch（读本地凭据库）或 env（环境变量）",
+    "budget": "一条视频最多调用模型几次，超了直接停（只有多判官时才放宽）"
   },
-
   "model": "gpt-6.1-sol",
   "effort": "low",
   "max_output_tokens": 8000,
-
   "image": {
     "max_side": 1280,
     "jpeg_quality": 92,
     "detail": "high",
-    "max_per_request": 8
+    "max_per_request": 16
   },
-
   "frames": {
     "locate": 10,
     "window": 4,
-    "review": 8,
+    "review": 12,
     "review_margin_s": 0.25,
     "event_margin_s": 0.4,
     "end_window_s": 1.0,
-    "jpeg_quality": 95
+    "jpeg_quality": 95,
+    "stagger_votes": true,
+    "sheet": {
+      "cols": 2,
+      "rows": 3,
+      "side": 1280,
+      "gap": 8,
+      "apply_to": [
+        "locate",
+        "review"
+      ]
+    },
+    "event_tail_to": "next",
+    "review_sheets": 1
   },
-
   "timeout": {
     "connect_s": 30,
     "read_s": 300
   },
-
   "retry": {
     "transport_attempts": 6,
-    "transport_backoff_s": [15, 240],
+    "transport_backoff_s": [
+      15,
+      240
+    ],
     "format_attempts": 3,
     "stage": {
-      "first":  {"attempts": 4, "transport_sleep_s": 20, "format_sleep_s": 5},
-      "fusion": {"attempts": 4, "transport_sleep_s": 20, "format_sleep_s": 5},
-      "review": {"attempts": 3, "transport_sleep_s": 15, "format_sleep_s": 3}
+      "first": {
+        "attempts": 4,
+        "transport_sleep_s": 20,
+        "format_sleep_s": 5
+      },
+      "fusion": {
+        "attempts": 4,
+        "transport_sleep_s": 20,
+        "format_sleep_s": 5
+      },
+      "review": {
+        "attempts": 3,
+        "transport_sleep_s": 15,
+        "format_sleep_s": 3
+      }
     }
   },
-
-  "review_samples": 2,
+  "vote": {
+    "first": 1,
+    "fusion": 1,
+    "review": 3,
+    "max_votes": 5
+  },
   "concurrency": 5,
-
   "endpoint": {
+    "source": "cc-switch",
+    "cc_switch_db": "~/.cc-switch/cc-switch.db",
     "base_url": null,
     "api_key_env": "OPENAI_API_KEY"
+  },
+  "budget": {
+    "max_calls_per_video": 20,
+    "max_review_requests": 1
   }
 }
