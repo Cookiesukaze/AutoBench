@@ -11,7 +11,7 @@ from pathlib import Path
 from ...app.config import Config
 from ...app.data.types import Plan
 from .experts import evidence as evidence_builder
-from .steps import step01_first, step02_fusion, step03_review
+from .steps import step00_reference, step01_first, step02_fusion, step03_review
 from .tools.expert import camera, contact, continuity, hand_side, persistence
 
 RULES = {"camera": camera.decide, "continuity": continuity.decide,
@@ -70,7 +70,11 @@ def _conflicts(plan: Plan, state: dict) -> dict[str, str]:
 
 
 def run(client, plan: Plan, video: Path, reference: Path, experts_dir: Path,
-        workdir: Path, config: Config) -> dict:
+        workdir: Path, config: Config, reference_audit: dict | None = None) -> dict:
+    if reference_audit is None:
+        plan, reference_audit = step00_reference.run(client, plan, reference)
+    else:
+        plan = step00_reference.apply(plan, reference_audit)
     first = step01_first.run(client, plan, video, reference, workdir, config)
     located = {eid: {"start": row.get("start"), "end": row.get("end")}
                for eid, row in first["events"].items()}
@@ -124,5 +128,12 @@ def run(client, plan: Plan, video: Path, reference: Path, experts_dir: Path,
         elif row.get("status") == "resolved":
             state["events"][eid] = {**row, "occurred": bool(row.get("occurred", True))}
 
+    for item_id, row in reference_audit.items():
+        if row["status"] == "not_applicable":
+            state["items"][item_id] = {**row, "evidence": [],
+                                       "excluded_because": "reference_subject_absent"}
+        elif row["status"] == "unjudgeable":
+            state["items"][item_id] = {**row, "status": "unjudgeable", "evidence": []}
+    state["reference_applicability"] = reference_audit
     state["expert_requests_not_run"] = []
     return state

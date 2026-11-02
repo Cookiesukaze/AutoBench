@@ -125,6 +125,8 @@ def check_items(rows: list[dict], expected: dict[str, Any], frame_ids: set[str],
             row["status"] = "unjudgeable"
         elif status not in STAGES[stage]:
             raise ValueError("%s: status %r not allowed in the %s step" % (row["id"], status, stage))
+        if item.type == "identity" and status == "not_applicable":
+            raise ValueError("Identity applicability is decided from the reference before video judging")
         if (status == "not_applicable" and stage != "fusion" and item.type not in PHYSICAL
                 and not (stage == "review" and item.type == "direction")):
             raise ValueError("%s: only physics items can be not_applicable" % row["id"])

@@ -29,5 +29,6 @@ def measure(video, repo):
             os.chdir(previous)
 
     evaluator = cached(("dover", str(repo)), build)
-    technical, aesthetic = evaluator.score(str(video))
+    # The author's dover_batch wrapper returns [aesthetic, technical].
+    aesthetic, technical = evaluator.score(str(video))
     return dict(dover_technical=float(technical), dover_aesthetic=float(aesthetic))

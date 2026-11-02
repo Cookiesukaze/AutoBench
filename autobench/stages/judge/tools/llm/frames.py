@@ -14,6 +14,14 @@ def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _write_jpeg(path: Path, frame: np.ndarray, quality: int) -> None:
+    # OpenCV's Windows filename API cannot reliably open Unicode paths.
+    ok, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        raise OSError(str(path))
+    path.write_bytes(encoded.tobytes())
+
+
 def frame_count(video: Path) -> int:
     capture = cv2.VideoCapture(str(video))
     try:
@@ -87,7 +95,9 @@ def sheet(records: list[dict], root: Path, cols: int, rows: int, side: int, gap:
     sheets: list[dict] = []
     for start in range(0, len(records), per_sheet):
         group = records[start:start + per_sheet]
-        tiles = [cv2.imread(record["path"]) for record in group]
+        tiles = [cv2.imdecode(np.frombuffer(Path(record["path"]).read_bytes(),
+                                          dtype=np.uint8), cv2.IMREAD_COLOR)
+                 for record in group]
         if any(tile is None for tile in tiles):
             raise ValueError("有帧读不出来，不能拼接")
         height, width = tiles[0].shape[:2]
@@ -110,8 +120,7 @@ def sheet(records: list[dict], root: Path, cols: int, rows: int, side: int, gap:
                         (0, 0, 255), max(1, int(2 * font)), cv2.LINE_AA)
         path = root / ("sheet%02d_%s.jpg" % (len(sheets), _digest(json.dumps(
             [r["id"] for r in group]).encode())[:8]))
-        if not cv2.imwrite(str(path), canvas, [cv2.IMWRITE_JPEG_QUALITY, quality]):
-            raise OSError(str(path))
+        _write_jpeg(path, canvas, quality)
         sheets.append({"id": "S%d" % len(sheets), "tiles": [r["id"] for r in group],
                        "seconds": [r["seconds"] for r in group],
                        "layout": "%d 列 × %d 行，从左到右、从上到下" % (cols, rows),
@@ -148,8 +157,7 @@ def extract(video: Path, root: Path, indices: list[int], quality: int,
                 if frame.size == 0:
                     raise ValueError("裁剪区域为空")
             path = root / ("f%05d_%s.jpg" % (index, _digest(json.dumps([index, crop]).encode())[:10]))
-            if not cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, quality]):
-                raise OSError(str(path))
+            _write_jpeg(path, frame, quality)
             records.append({"id": "%s%d" % (prefix, index), "index": index,
                             "seconds": round(index / fps, 3),
                             "crop_xyxy_normalized": crop, "path": str(path),

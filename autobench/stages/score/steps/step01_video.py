@@ -54,6 +54,12 @@ def rows(plan: Plan, result: dict) -> list[dict]:
         if item.id not in result.get("items", {}):
             raise ContractError(f"{plan.question_id}: 检查项 {item.id} 没有判定结果")
         state = result["items"][item.id]
+        if item.type == "identity" and state.get("status") in ("not_applicable", "not_triggered"):
+            audit = (result.get("reference_applicability") or {}).get(item.id) or {}
+            if (audit.get("status") != "not_applicable"
+                    or audit.get("reference_sha256") != plan.reference_sha256
+                    or not audit.get("reason")):
+                raise ContractError(f"{item.id}: 身份项退出计分必须有匹配参考图的适用性核查证据")
         verdict = _verdict({**state, "id": item.id})
         value = verdict.value if verdict.outcome is Outcome.MEASURED else None
         why = None if verdict.outcome is Outcome.MEASURED else verdict.outcome.value
@@ -94,7 +100,10 @@ def video(plan: Plan, result: dict, aggregation: str = "dimension") -> tuple[Sco
         return _mean([_mean(v) for v in dims.values()])
 
     judged = [r for r in scored if r["value"] is not None]
-    coverage = len(judged) / len(scored) if scored else 0.0
+    reference_excluded = {k for k, v in (result.get("reference_applicability") or {}).items()
+                          if v.get("status") == "not_applicable"}
+    applicable = [r for r in scored if r["id"] not in reference_excluded]
+    coverage = len(judged) / len(applicable) if applicable else 0.0
     open_ids = undetermined(result)
     if open_ids:
         return Score(instruction=None, physics=None, quality=None, coverage=coverage,

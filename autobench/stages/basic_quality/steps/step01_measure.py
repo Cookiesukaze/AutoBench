@@ -174,7 +174,7 @@ def build_summaries(tasks, output, checks):
         for name, block in list(summary["metrics"].items()):
             transform = (
                 "raw"
-                if name == "gen_artifact_warp"
+                if name in ("gen_artifact_warp", "dover_technical", "dover_aesthetic")
                 else "log"
                 if name in ("camera_jitter", "subject_motion")
                 else "log1p"

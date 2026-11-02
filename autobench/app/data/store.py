@@ -90,7 +90,15 @@ class Store:
             json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False),
             encoding="utf-8",
         )
-        os.replace(tmp, path)
+        # Windows 读取器/索引器可能短暂拒绝替换；始终保留旧文件，等共享锁释放。
+        for attempt in range(8):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError as exc:
+                if getattr(exc, "winerror", None) not in (5, 32, 33) or attempt == 7:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
 
     def append_cost(self, record: dict) -> None:
         """一行一次追加，不改旧记录：重跑一个阶段只会多几行，不会覆盖历史。"""

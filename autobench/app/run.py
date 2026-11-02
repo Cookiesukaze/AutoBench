@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import threading
 
 from ..stages.judge import run as judge_stage
 from ..stages.judge.tools.llm.client import Client
+from ..stages.judge.steps import step00_reference
 from ..stages.plan import run as plan_stage
 from ..stages.quality import run as quality_stage
 from ..stages.basic_quality import run as basic_quality_stage
@@ -17,6 +19,29 @@ from ..stages.score.steps import step03_leaderboard
 from .config import Config
 from .data.store import Recorder, Store
 from .data.types import ContractError, Plan, plan_from_dict, plan_to_dict, split_unit
+
+
+_REFERENCE_LOCK = threading.Lock()
+
+
+def _reference_audit(store, config, recorder, plan, reference):
+    if not any(i.type == "identity" for i in plan.all_items()):
+        return {}
+    # 同题所有配置共用一次参考图核查，避免并发多票使适用项集合各不相同。
+    folder = store.root / "reference" / plan.question_id
+    path = folder / "applicability.json"
+    from .batch.inputs import fingerprint
+    identity = fingerprint(dict(plan=plan_to_dict(plan), vlm=config.vlm))
+    with _REFERENCE_LOCK:
+        if path.exists():
+            saved = store.read_json(path)
+            if saved.get("identity") != identity:
+                raise ContractError("参考图核查缓存与当前计划或模型配置不符，请使用新 run-id")
+            return saved["items"]
+        client = Client(config.vlm, folder, recorder)
+        _, audit = step00_reference.run(client, plan, reference)
+        store.write_json(path, dict(identity=identity, items=audit))
+        return audit
 
 
 def plan_one(
@@ -57,8 +82,9 @@ def judge_one(
     )
     client = Client(config.vlm, workdir, recorder)
     with recorder.stage("judge", unit, store=store, config=config_name):
+        reference_audit = _reference_audit(store, config, recorder, plan, reference)
         result = judge_stage.run(
-            client, plan, video, reference, experts_dir, workdir, config
+            client, plan, video, reference, experts_dir, workdir, config, reference_audit
         )
         store.write_json(store.result_file(config_name, unit), result)
     recorder.write(store)

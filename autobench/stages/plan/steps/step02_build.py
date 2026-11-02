@@ -218,7 +218,12 @@ def build(spec: dict, question_id: str, image_sha256: str, checks: dict) -> Plan
             constraints.append(item(
                 checks, f"{eid}.binding", "binding",
                 f"It is {actor} who does this step, not another person. Whether the object is the "
-                "right one is scored in the step itself and is not counted again here.",
+                "right one is scored in the step itself and is not counted again here. "
+                "Use visible body, hand and tool continuity before and after the action to establish "
+                "who acts; a temporarily off-frame hand does not by itself make the actor unknown. "
+                "Do not require a face or an identity match to a person absent from the reference. "
+                "If the action is visibly performed by another person or an unconnected extra limb, "
+                "fail; if its ownership remains genuinely ambiguous, request review.",
                 tuple(concepts), {"actor": actor, "object": obj}))
         if "direction" in segment["tests"] and segment["destination"]:
             where = resolve(segment["destination"], subjects)

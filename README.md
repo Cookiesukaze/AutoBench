@@ -83,20 +83,21 @@ python -m autobench.app.cli batch --run-id gpu-demo --specs tasks.json --image-d
 
 缺少视频、任何正式维度缺失或判定未定，配置总分保留 `null` 并退出排名。排行榜点估计与 `score.json` 使用同一个总分；bootstrap 按题重采样，也使用真实的三维视频分。题集不同的配置不直接排名。
 
+正式判定前，同题所有配置共用一次仅看参考图的身份适用性核查。参考图明确没有题面声称的人物时，身份比对项记 `not_applicable`，保存参考图 SHA256 和视觉理由，退出计分分母；这不等于通过。参考模糊或遮挡则继续保留未定，人物实际在参考图里时仍核对身份。动作归属、左右手和物理检查照常执行；动作归属复核可看前后上下文，不把人物短暂在画外直接当作身份不明。题面与生成提示词保持原样。
+
 ## 续跑和远端边界
 
 产物保存在 `paths.local.data_root/runs_subdir/run_id/`。`manifest.json` 固定输入、参考图、源码与配置摘要；`batch.json` 保留阶段状态和历史。重跑同一命令仅复用内容摘要仍匹配的成功任务。输入、代码或配置变化时必须使用新 run-id。锁文件记录 PID，异常中断遗留的 `batch.lock` 需核对原进程退出后移除。
 
 远端代码上传至 `archive/autobench/<run-id>/<identity>/code`，不会覆盖旧 AutoInferOpt 源码。专家源码、环境和已安装权重继续从 `paths.remote` 指定位置读取。SAM 后构造跟踪点；每种专家用一个常驻进程消费整个批次；调度器按物理 GPU UUID 和逐卡显存预算预约，退出后才归还预约。下载产物逐项 SHA256 校验。断线后同命令重新连接；部分失败的专家再次运行时可复用完整且校验成功的观测。
 
-CPU 模式测清晰度、亮度、闪烁和生成失真。MUSIQ、HADM、SAM、CoTracker、WAFT、DINO、姿态模型需要对应远端环境和权重。MUSIQ 已核对并使用 tracker 环境和已有 KonIQ 权重，显式传入权重路径及 SHA256，避免隐式下载。DOVER 适配器已接入，但 `paths.remote.dover_repo` 默认 `null`；指向含 `dover_batch.py` 和 `dover.yml` 的已安装目录才启用。Ghosting 仍标记为未接线。缺失通道不会被当作正常。DINO 当前只提供视频全帧相似度，没有冒充参考图主体身份识别。
+CPU 模式测清晰度、亮度、闪烁和生成失真。MUSIQ、HADM、SAM、CoTracker、WAFT、DINO、姿态模型需要对应远端环境和权重。MUSIQ 已核对并使用 tracker 环境和已有 KonIQ 权重，显式传入权重路径及 SHA256，避免隐式下载。DOVER 已配置为远端 `repos/DOVER`，使用独立的 `dover_v2_20261027` 环境；设 `paths.remote.dover_repo` 为 `null` 可禁用。作者接口返回美学、技术两路，按正确顺序保存并使用原始分刻度，支持负分。Ghosting 仍标记为未接线。缺失通道不会被当作正常。DINO 当前只提供视频全帧相似度，没有冒充参考图主体身份识别。
 
 ## 验证
 
 ```powershell
-python -m unittest discover -s tests -v
-python -m ruff check autobench tests --select F
-python -m compileall -q autobench tests
+python -m ruff check --no-cache autobench --select F
+python -m compileall -q autobench
 ```
 
-测试使用真实合成视频、脚本判官和模拟 GPU 子进程，覆盖批次执行与续跑、三路、连续 HADM、缺失计分、排行榜和产物完整性。另已通过 SSH 只读核对 A800 上三个解释器、五份专家 manifest 及对应源码/模型目录、HADM 源码与权重均存在。本次迁移没有启动真实远端模型或付费 VLM 调用；远端模型兼容性与实际显存仍需真实作业验证。
+2026-11-02 已对 B006_E1_E1 的五个配置补跑真实 DOVER、完成真实 VLM 判定，并修复参考图适用性和复核上下文。五个总分均为数值，批次 complete；禁止联网和专家推理的全新离线回放与真实运行的基础报告、画质和计分文件完全一致，续跑通过。交付包保留验证记录，仓库不额外保留 tests 目录。原始出题文件保持不变。其他 GPU 专家仍需各自的真实作业验收。

@@ -28,7 +28,8 @@
     "python": {
       "tracker": "envs/AutoInferOpt/benchmark_tracker_20261019/bin/python",
       "main": "envs/AutoInferOpt/benchmark_20261019/bin/python",
-      "hadm": "envs/AutoInferOpt/hadm_20261020/bin/python"
+      "hadm": "envs/AutoInferOpt/hadm_20261020/bin/python",
+      "dover": "envs/AutoInferOpt/dover_v2_20261027/bin/python"
     },
     "expert_python": {
       "cotracker3": "tracker",
@@ -38,7 +39,7 @@
       "pose": "hadm",
       "hadm": "hadm",
       "musiq": "tracker",
-      "dover": "main"
+      "dover": "dover"
     },
     "assets": "assets/AutoInferOpt",
     "archive": "outputs/AutoInferOpt/archive",
@@ -55,7 +56,7 @@
       "repo": "repos/AutoInferOpt/third_party/evaluation/HADM",
       "weights": "models/AutoInferOpt/evaluators/HADM/HADM-L_0249999.pth"
     },
-    "dover_repo": null,
+    "dover_repo": "repos/DOVER",
     "musiq": {
       "weights": "models/AutoInferOpt/evaluators/pyiqa_weights/hub/pyiqa/musiq_koniq_ckpt-e95806b9.pth",
       "sha256": "e95806b9eae5f3814c410f574ba8e552362bd5bc63d758ed5b97860f5d6185aa"

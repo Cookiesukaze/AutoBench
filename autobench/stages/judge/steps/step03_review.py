@@ -153,8 +153,7 @@ def run(client, plan: Plan, state: dict, video: Path, workdir: Path, config: Con
         request = {"window": window, "kind": "frames", "question": question}
         hits = [vanished[c] for c in events[ident].concepts if c in vanished]
         if hits:
-            request = {**request, "window": [min(h[0] for h in hits), max(h[1] for h in hits)],
-                       "exact": True}
+            request = {**request, "focus_window": [min(h[0] for h in hits), max(h[1] for h in hits)]}
         entries.append({"kind": "events", "id": ident, "request": request})
     for kind, ident, row in todo:
         request = row.get("review") if isinstance(row.get("review"), dict) else _default_request(ident, duration)
@@ -162,6 +161,9 @@ def run(client, plan: Plan, state: dict, video: Path, workdir: Path, config: Con
         if kind == "items":
             window = _reveal_window(window, ident, state["events"], duration,
                                     vlm["frames"]["event_margin_s"])
+        if kind == "items" and items[ident].type == "binding":
+            # 动作归属需要动作前后的人体与工具连接，不能把身体刚入画的上下文裁掉。
+            window = [0.0, duration]
         if kind == "items" and ident.endswith(".support"):
             # 支撑是"放稳之后"的状态，窗口必须延到片尾才看得到。
             window = [window[0], max(window[1], duration)]
@@ -169,8 +171,8 @@ def run(client, plan: Plan, state: dict, video: Path, workdir: Path, config: Con
         hits = ([vanished[c] for c in items[ident].concepts if c in vanished]
                 if kind == "items" else [])
         if hits:
-            window = [min(h[0] for h in hits), max(h[1] for h in hits)]
-            request = {**request, "exact": True}
+            # 疑似消失点要密看，但不能替换请求原本需要的全程/结尾上下文。
+            request = {**request, "focus_window": [min(h[0] for h in hits), max(h[1] for h in hits)]}
         entries.append({"kind": kind, "id": ident, "request": {**request, "window": window}})
 
     planned: dict[tuple, list[dict]] = {}
@@ -217,6 +219,20 @@ def run(client, plan: Plan, state: dict, video: Path, workdir: Path, config: Con
                                  int(sheet_cfg["cols"]), int(sheet_cfg["rows"]), int(sheet_cfg["side"]),
                                  int(sheet_cfg["gap"]), vlm["frames"]["jpeg_quality"])
                            if mosaicked else zoom)
+            focuses = sorted({tuple(e["request"]["focus_window"]) for e in rows
+                              if e["request"].get("focus_window")})
+            for focus_order, focus in enumerate(focuses):
+                count = round(focus[1] * meta["fps"]) - round(focus[0] * meta["fps"]) + 1
+                dense_indices = review_indices(list(focus), meta["fps"], meta["frames"],
+                                               max(per_window, min(count, per_window * 2)),
+                                               0.0, view if stagger else 0,
+                                               samples if stagger else 1)
+                dense, _ = extract(video, workdir / f"frames_focus_w{order}_f{focus_order}_s{view}",
+                                   dense_indices, vlm["frames"]["jpeg_quality"])
+                frames += (sheet(dense, workdir / f"sheets_focus_w{order}_f{focus_order}_s{view}",
+                                 int(sheet_cfg["cols"]), int(sheet_cfg["rows"]), int(sheet_cfg["side"]),
+                                 int(sheet_cfg["gap"]), vlm["frames"]["jpeg_quality"])
+                           if mosaicked else dense)
         return frames
 
     def judge_group(group: dict, group_index: int) -> tuple[dict, dict]:
